@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9AEAAAF53003F9B700CCABBB /* EndpointsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */; };
+		9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF63003FA3300CCABBB /* DevicesView.swift */; };
 		A1000001 /* HomeKitBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* HomeKitBridgeApp.swift */; };
 		A1000002 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* MainTabView.swift */; };
 		A1000003 /* HomeKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* HomeKitManager.swift */; };
@@ -24,6 +26,8 @@
 
 /* Begin PBXFileReference section */
 		9AEAAAF33003F22300CCABBB /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsView.swift; sourceTree = "<group>"; };
+		9AEAAAF63003FA3300CCABBB /* DevicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicesView.swift; sourceTree = "<group>"; };
 		A2000001 /* HomeKitBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitBridgeApp.swift; sourceTree = "<group>"; };
 		A2000002 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A2000003 /* HomeKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitManager.swift; sourceTree = "<group>"; };
@@ -112,6 +116,8 @@
 				A2000013 /* SyncView.swift */,
 				A2000014 /* LogsView.swift */,
 				A2000015 /* SettingsView.swift */,
+				9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */,
+				9AEAAAF63003FA3300CCABBB /* DevicesView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -174,7 +180,9 @@
 				A1000004 /* HTTPServer.swift in Sources */,
 				A1000005 /* LogEntry.swift in Sources */,
 				A1000006 /* LogStore.swift in Sources */,
+				9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */,
 				A1000007 /* SyncEngine.swift in Sources */,
+				9AEAAAF53003F9B700CCABBB /* EndpointsView.swift in Sources */,
 				A1000008 /* OnboardingView.swift in Sources */,
 				A1000009 /* DashboardView.swift in Sources */,
 				A1000010 /* SyncView.swift in Sources */,

@@ -9,10 +9,17 @@ struct HomeKitBridgeApp: App {
     @StateObject private var syncEngine: SyncEngine
     @StateObject private var httpServer: HTTPServer
 
+    @State private var didStartLaunchServices = false
+
     @AppStorage("onboardingComplete") private var onboardingComplete = false
     @AppStorage("autoStartServer") private var autoStartServer = true
 
     init() {
+        UserDefaults.standard.register(defaults: [
+            "haURL": HAConfiguration.defaultURL,
+            "haToken": HAConfiguration.defaultToken
+        ])
+
         let homeKit = HomeKitManager()
         let logs = LogStore()
         let ws = HAWebSocketClient()
@@ -38,8 +45,15 @@ struct HomeKitBridgeApp: App {
             .environmentObject(syncEngine)
             .environmentObject(httpServer)
             .onAppear {
+                guard !didStartLaunchServices else { return }
+                didStartLaunchServices = true
+
                 if autoStartServer {
                     httpServer.start()
+                }
+
+                Task {
+                    _ = await wsClient.connect()
                 }
             }
         }

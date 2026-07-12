@@ -1,5 +1,10 @@
 import Foundation
 
+enum HAConfiguration {
+    static let defaultURL = ""
+    static let defaultToken = ""
+}
+
 /// Home Assistant WebSocket API client.
 /// Handles authentication, message IDs, and request/response matching.
 @MainActor
@@ -11,8 +16,8 @@ final class HAWebSocketClient: ObservableObject {
     private var urlSession: URLSession?
     private var nextId: Int = 1
     private var pendingHandlers: [Int: (Result<Any, Error>) -> Void] = [:]
-    private var haURL: String { UserDefaults.standard.string(forKey: "haURL") ?? "" }
-    private var haToken: String { UserDefaults.standard.string(forKey: "haToken") ?? "" }
+    private var haURL: String { UserDefaults.standard.string(forKey: "haURL") ?? HAConfiguration.defaultURL }
+    private var haToken: String { UserDefaults.standard.string(forKey: "haToken") ?? HAConfiguration.defaultToken }
     private var receiveTask: Task<Void, Never>?
 
     func connect() async -> Bool {

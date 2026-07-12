@@ -56,9 +56,22 @@ struct SyncChange: Identifiable {
     }
 }
 
+struct SyncProgress {
+    let title: String
+    let detail: String?
+    let completed: Int?
+    let total: Int?
+
+    var fractionCompleted: Double? {
+        guard let completed, let total, total > 0 else { return nil }
+        return Double(completed) / Double(total)
+    }
+}
+
 @MainActor
 final class SyncEngine: ObservableObject {
     @Published private(set) var isBusy = false
+    @Published private(set) var progress: SyncProgress?
 
     private let homeKitManager: HomeKitManager
     private let logStore: LogStore
@@ -72,14 +85,9 @@ final class SyncEngine: ObservableObject {
 
     func testHAConnection() async -> Bool {
         if wsClient.isConnected {
-            do {
-                let _ = try await wsClient.getStates()
-                return true
-            } catch {
-                logStore.add(category: .error, message: "HA test failed", details: error.localizedDescription)
-                return false
-            }
+            return true
         }
+
         let ok = await wsClient.connect()
         if !ok {
             logStore.add(category: .error, message: "HA WebSocket failed", details: wsClient.connectionError ?? "Unknown")
@@ -91,13 +99,19 @@ final class SyncEngine: ObservableObject {
 
     func dryRun(_ operation: SyncOperation) async throws -> DryRunResult {
         isBusy = true
-        defer { isBusy = false }
+        progress = SyncProgress(title: "Preparing dry run", detail: operation.rawValue, completed: nil, total: nil)
+        defer {
+            isBusy = false
+            progress = nil
+        }
 
         if !wsClient.isConnected {
+            progress = SyncProgress(title: "Connecting to Home Assistant", detail: "Opening WebSocket connection", completed: nil, total: nil)
             let ok = await wsClient.connect()
             if !ok { throw BridgeError.badRequest(wsClient.connectionError ?? "Cannot connect to HA") }
         }
 
+        progress = SyncProgress(title: "Comparing data", detail: operation.rawValue, completed: nil, total: nil)
         switch operation {
         case .roomsHAToHome: return try await dryRunRoomsHAToHome()
         case .roomsHomeToHA: return try await dryRunRoomsHomeToHA()
@@ -112,9 +126,14 @@ final class SyncEngine: ObservableObject {
 
     func execute(_ result: DryRunResult) async throws {
         isBusy = true
-        defer { isBusy = false }
+        progress = SyncProgress(title: "Preparing execution", detail: result.operation.rawValue, completed: nil, total: nil)
+        defer {
+            isBusy = false
+            progress = nil
+        }
 
         if !wsClient.isConnected {
+            progress = SyncProgress(title: "Connecting to Home Assistant", detail: "Opening WebSocket connection", completed: nil, total: nil)
             let ok = await wsClient.connect()
             if !ok { throw BridgeError.badRequest(wsClient.connectionError ?? "Cannot connect to HA") }
         }
@@ -124,10 +143,23 @@ final class SyncEngine: ObservableObject {
         var successCount = 0
         var failCount = 0
 
-        for change in result.changes {
+        for (index, change) in result.changes.enumerated() {
+            progress = SyncProgress(
+                title: "Executing change \(index + 1) of \(result.changes.count)",
+                detail: change.title,
+                completed: index,
+                total: result.changes.count
+            )
+
             do {
                 try await executeChange(change, operation: result.operation)
                 successCount += 1
+                progress = SyncProgress(
+                    title: "Completed change \(index + 1) of \(result.changes.count)",
+                    detail: change.title,
+                    completed: index + 1,
+                    total: result.changes.count
+                )
                 logStore.add(category: .sync, message: "✓ \(change.title)", details: change.details)
             } catch {
                 failCount += 1
@@ -216,10 +248,12 @@ final class SyncEngine: ObservableObject {
         guard let home = homeKitManager.primaryHome else {
             throw BridgeError.notFound("No HomeKit home available")
         }
+        progress = SyncProgress(title: "Fetching Home Assistant areas", detail: nil, completed: nil, total: nil)
         let areas = try await wsClient.fetchAreas()
         var changes: [SyncChange] = []
 
-        for area in areas {
+        for (index, area) in areas.enumerated() {
+            progress = SyncProgress(title: "Comparing areas", detail: "Area \(index + 1) of \(areas.count)", completed: index, total: areas.count)
             guard let name = area["name"] as? String else { continue }
             if homeKitManager.room(named: name, in: home) == nil {
                 changes.append(SyncChange(
@@ -237,11 +271,14 @@ final class SyncEngine: ObservableObject {
         guard let home = homeKitManager.primaryHome else {
             throw BridgeError.notFound("No HomeKit home available")
         }
+        progress = SyncProgress(title: "Fetching Home Assistant areas", detail: nil, completed: nil, total: nil)
         let areas = try await wsClient.fetchAreas()
         let areaNames = Set(areas.compactMap { ($0["name"] as? String)?.lowercased() })
 
+        let rooms = home.rooms.filter { $0.name != "Default Room" }
         var changes: [SyncChange] = []
-        for room in home.rooms where room.name != "Default Room" {
+        for (index, room) in rooms.enumerated() {
+            progress = SyncProgress(title: "Comparing HomeKit rooms", detail: "Room \(index + 1) of \(rooms.count)", completed: index, total: rooms.count)
             if !areaNames.contains(room.name.lowercased()) {
                 changes.append(SyncChange(
                     action: .createRoom, title: "Create HA area",
@@ -263,7 +300,8 @@ final class SyncEngine: ObservableObject {
         var changes: [SyncChange] = []
         var plannedRoomCreates = Set<String>()
 
-        for accessory in home.accessories {
+        for (index, accessory) in home.accessories.enumerated() {
+            progress = SyncProgress(title: "Reading HomeKit accessories", detail: "Accessory \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
             let serial = await homeKitManager.readSerialNumber(for: accessory)
             guard !serial.isEmpty, let targetAreaName = entityAreaMap[serial] else { continue }
 
@@ -299,7 +337,8 @@ final class SyncEngine: ObservableObject {
         let entityAreaMap = try await buildEntityAreaMap()
         var changes: [SyncChange] = []
 
-        for accessory in home.accessories {
+        for (index, accessory) in home.accessories.enumerated() {
+            progress = SyncProgress(title: "Reading HomeKit accessories", detail: "Accessory \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
             let serial = await homeKitManager.readSerialNumber(for: accessory)
             guard !serial.isEmpty else { continue }
 
@@ -327,7 +366,8 @@ final class SyncEngine: ObservableObject {
         let nameMap = try await buildEntityNameMap()
         var changes: [SyncChange] = []
 
-        for accessory in home.accessories {
+        for (index, accessory) in home.accessories.enumerated() {
+            progress = SyncProgress(title: "Reading HomeKit accessories", detail: "Accessory \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
             let serial = await homeKitManager.readSerialNumber(for: accessory)
             guard !serial.isEmpty, let targetName = nameMap[serial] else { continue }
             if accessory.name == targetName { continue }
@@ -350,7 +390,8 @@ final class SyncEngine: ObservableObject {
         let nameMap = try await buildEntityNameMap()
         var changes: [SyncChange] = []
 
-        for accessory in home.accessories {
+        for (index, accessory) in home.accessories.enumerated() {
+            progress = SyncProgress(title: "Reading HomeKit accessories", detail: "Accessory \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
             let serial = await homeKitManager.readSerialNumber(for: accessory)
             guard !serial.isEmpty, let haName = nameMap[serial] else { continue }
 
@@ -370,8 +411,11 @@ final class SyncEngine: ObservableObject {
     // MARK: - Helpers
 
     private func buildEntityAreaMap() async throws -> [String: String] {
+        progress = SyncProgress(title: "Fetching Home Assistant areas", detail: nil, completed: nil, total: nil)
         let areas = try await wsClient.fetchAreas()
+        progress = SyncProgress(title: "Fetching Home Assistant entities", detail: nil, completed: nil, total: nil)
         let entities = try await wsClient.fetchEntityRegistry()
+        progress = SyncProgress(title: "Fetching Home Assistant devices", detail: nil, completed: nil, total: nil)
         let devices = try await wsClient.fetchDeviceRegistry()
 
         var areaNameById: [String: String] = [:]
@@ -404,9 +448,11 @@ final class SyncEngine: ObservableObject {
     }
 
     private func buildEntityNameMap() async throws -> [String: String] {
+        progress = SyncProgress(title: "Fetching Home Assistant states", detail: nil, completed: nil, total: nil)
         let states = try await wsClient.getStates()
         var result: [String: String] = [:]
-        for state in states {
+        for (index, state) in states.enumerated() {
+            progress = SyncProgress(title: "Reading Home Assistant names", detail: "Entity \(index + 1) of \(states.count)", completed: index, total: states.count)
             if let entityId = state["entity_id"] as? String,
                let attrs = state["attributes"] as? [String: Any],
                let friendlyName = attrs["friendly_name"] as? String {

@@ -5,12 +5,20 @@ import HomeKit
 final class HomeKitManager: NSObject, ObservableObject {
     @Published var isAuthorized: Bool = false
     @Published var homes: [HMHome] = []
+    @Published private(set) var selectedHomeId: String?
 
+    private static let selectedHomeDefaultsKey = "selectedHomeId"
     private var manager: HMHomeManager?
 
-    var primaryHome: HMHome? { homes.first }
+    var primaryHome: HMHome? {
+        if let selectedHomeId, let selectedHome = home(byId: selectedHomeId) {
+            return selectedHome
+        }
+        return homes.first
+    }
 
     override init() {
+        selectedHomeId = UserDefaults.standard.string(forKey: Self.selectedHomeDefaultsKey)
         super.init()
         requestAccess()
     }
@@ -25,6 +33,27 @@ final class HomeKitManager: NSObject, ObservableObject {
 
     func home(byId id: String) -> HMHome? {
         homes.first { $0.uniqueIdentifier.uuidString == id }
+    }
+
+    func selectHome(id: String) {
+        guard homes.contains(where: { $0.uniqueIdentifier.uuidString == id }) else { return }
+        selectedHomeId = id
+        UserDefaults.standard.set(id, forKey: Self.selectedHomeDefaultsKey)
+    }
+
+    private func updateHomes(_ newHomes: [HMHome]) {
+        homes = newHomes
+
+        if let selectedHomeId, newHomes.contains(where: { $0.uniqueIdentifier.uuidString == selectedHomeId }) {
+            return
+        }
+
+        selectedHomeId = newHomes.first?.uniqueIdentifier.uuidString
+        if let selectedHomeId {
+            UserDefaults.standard.set(selectedHomeId, forKey: Self.selectedHomeDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.selectedHomeDefaultsKey)
+        }
     }
 
     func accessory(byId id: String) -> HMAccessory? {
@@ -160,20 +189,20 @@ final class HomeKitManager: NSObject, ObservableObject {
 extension HomeKitManager: HMHomeManagerDelegate {
     nonisolated func homeManagerDidUpdateHomes(_ manager: HMHomeManager) {
         Task { @MainActor in
-            self.homes = manager.homes
+            self.updateHomes(manager.homes)
             self.isAuthorized = true
         }
     }
 
     nonisolated func homeManager(_ manager: HMHomeManager, didAdd home: HMHome) {
         Task { @MainActor in
-            self.homes = manager.homes
+            self.updateHomes(manager.homes)
         }
     }
 
     nonisolated func homeManager(_ manager: HMHomeManager, didRemove home: HMHome) {
         Task { @MainActor in
-            self.homes = manager.homes
+            self.updateHomes(manager.homes)
         }
     }
 }

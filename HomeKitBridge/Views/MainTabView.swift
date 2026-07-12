@@ -8,26 +8,53 @@ struct MainTabView: View {
     @EnvironmentObject private var server: HTTPServer
 
     var body: some View {
-        TabView {
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "house")
-                }
+        #if os(macOS)
+        HSplitView {
+            TabView {
+                primaryTabItems
+            }
+            .frame(minWidth: 420, idealWidth: 620)
 
-            SyncView()
-                .tabItem {
-                    Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-                }
+            LogsView()
+                .frame(minWidth: 360, idealWidth: 460)
+        }
+        #else
+        TabView {
+            primaryTabItems
 
             LogsView()
                 .tabItem {
                     Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
         }
+        #endif
+    }
+
+    @ViewBuilder
+    private var primaryTabItems: some View {
+        DashboardView()
+            .tabItem {
+                Label("Dashboard", systemImage: "house")
+            }
+
+        DevicesView()
+            .tabItem {
+                Label("Devices", systemImage: "sensor.tag.radiowaves.forward")
+            }
+
+        SyncView()
+            .tabItem {
+                Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+            }
+
+        EndpointsView()
+            .tabItem {
+                Label("Endpoints", systemImage: "point.3.connected.trianglepath.dotted")
+            }
+
+        SettingsView()
+            .tabItem {
+                Label("Settings", systemImage: "gearshape")
+            }
     }
 }

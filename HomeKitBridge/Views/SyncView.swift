@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SyncView: View {
+    @EnvironmentObject private var homeKitManager: HomeKitManager
     @EnvironmentObject private var syncEngine: SyncEngine
 
     @State private var operation: SyncOperation = .devicePlacementHAToHome
@@ -13,12 +14,19 @@ struct SyncView: View {
             Text("Synchronization")
                 .font(.largeTitle.bold())
 
-            Picker("Operation", selection: $operation) {
-                ForEach(SyncOperation.allCases) { op in
-                    Text(op.rawValue).tag(op)
+            VStack(alignment: .leading, spacing: 10) {
+                homePicker
+
+                Picker("Operation", selection: $operation) {
+                    ForEach(SyncOperation.allCases) { op in
+                        Text(op.rawValue).tag(op)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: operation) { _, _ in
+                    dryRunResult = nil
                 }
             }
-            .pickerStyle(.menu)
 
             HStack(spacing: 12) {
                 Button("Dry Run") {
@@ -27,7 +35,7 @@ struct SyncView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isWorking)
+                .disabled(isWorking || homeKitManager.primaryHome == nil)
 
                 Button("Execute") {
                     Task {
@@ -35,12 +43,16 @@ struct SyncView: View {
                     }
                 }
                 .buttonStyle(.bordered)
-                .disabled(isWorking || dryRunResult == nil)
+                .disabled(isWorking || dryRunResult == nil || homeKitManager.primaryHome == nil)
 
                 if isWorking {
                     ProgressView()
                         .padding(.leading, 4)
                 }
+            }
+
+            if let progress = syncEngine.progress {
+                progressStatusView(progress)
             }
 
             if let errorMessage {
@@ -77,9 +89,68 @@ struct SyncView: View {
         .padding(20)
     }
 
+    private var homePicker: some View {
+        HStack(spacing: 8) {
+            Text("Apple Home")
+                .font(.headline)
+
+            Picker("Apple Home", selection: Binding(
+                get: { homeKitManager.primaryHome?.uniqueIdentifier.uuidString ?? "" },
+                set: { newHomeId in
+                    homeKitManager.selectHome(id: newHomeId)
+                    dryRunResult = nil
+                }
+            )) {
+                if homeKitManager.homes.isEmpty {
+                    Text("No HomeKit homes found").tag("")
+                } else {
+                    ForEach(homeKitManager.homes, id: \.uniqueIdentifier) { home in
+                        Text(home.name).tag(home.uniqueIdentifier.uuidString)
+                    }
+                }
+            }
+            .pickerStyle(.menu)
+            .disabled(isWorking || homeKitManager.homes.isEmpty)
+        }
+    }
+
+    private func progressStatusView(_ progress: SyncProgress) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                if progress.fractionCompleted == nil {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(progress.title)
+                        .font(.headline)
+                    if let detail = progress.detail, !detail.isEmpty {
+                        Text(detail)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if let fractionCompleted = progress.fractionCompleted {
+                ProgressView(value: fractionCompleted)
+                if let completed = progress.completed, let total = progress.total {
+                    Text("\(completed) of \(total)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
     private func runDryRun() async {
         isWorking = true
         errorMessage = nil
+        dryRunResult = nil
         defer { isWorking = false }
 
         do {

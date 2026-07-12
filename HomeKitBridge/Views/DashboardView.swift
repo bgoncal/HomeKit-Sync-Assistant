@@ -53,7 +53,7 @@ struct DashboardView: View {
                     color: server.isRunning ? .green : .orange,
                     lines: [
                         server.isRunning ? "Running" : "Stopped",
-                        "Port: \(server.port)"
+                        "Port: \(String(server.port))"
                     ]
                 )
             }

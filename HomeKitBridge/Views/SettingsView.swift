@@ -46,7 +46,7 @@ struct SettingsView: View {
             }
 
             Section("Server") {
-                Stepper("Port: \(serverPort)", value: $serverPort, in: 1...65535)
+                Stepper("Port: \(String(serverPort))", value: $serverPort, in: 1...65535)
                     .onChange(of: serverPort) { _, newValue in
                         server.port = newValue
                     }
