@@ -23,6 +23,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9AEAAAF33003F22300CCABBB /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		A2000001 /* HomeKitBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitBridgeApp.swift; sourceTree = "<group>"; };
 		A2000002 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A2000003 /* HomeKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitManager.swift; sourceTree = "<group>"; };
@@ -69,6 +70,7 @@
 				A4000006 /* Views */,
 				A2000005 /* HomeKitBridge.entitlements */,
 				A2000006 /* Info.plist */,
+				9AEAAAF33003F22300CCABBB /* AppIcon.icon */,
 			);
 			path = HomeKitBridge;
 			sourceTree = "<group>";
