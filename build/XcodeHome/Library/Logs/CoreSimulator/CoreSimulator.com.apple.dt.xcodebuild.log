@@ -24,3 +24,16 @@ Jul 12 18:46:42 macmini com.apple.dt.xcodebuild[21455] <Error>: simdiskimaged re
 Jul 12 18:46:42 macmini com.apple.dt.xcodebuild[21455] <Error>: Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
 Jul 12 18:46:42 macmini com.apple.dt.xcodebuild[21455] <Warning>: Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode-27.0.0-Beta.3.app/Contents/Developer.
 Jul 12 18:46:42 macmini com.apple.dt.xcodebuild[21455] <Error>: simdiskimaged returned error (invalid), marking disconnected.
+Jul 12 19:22:22 macmini com.apple.dt.xcodebuild[23098] <Error>: Unable to deliver request ({
+	    request = "notification_subscription";
+	    "set_path" = "/Users/macmini/Library/Developer/CoreSimulator/Devices";
+	}) because we are not connected to CoreSimulatorService.
+Jul 12 19:22:22 macmini com.apple.dt.xcodebuild[23098] <Warning>: Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode-27.0.0-Beta.3.app/Contents/Developer.
+Jul 12 19:22:22 macmini com.apple.dt.xcodebuild[23098] <Error>: simdiskimaged returned error (invalid), marking disconnected.
+Jul 12 19:22:22 macmini com.apple.dt.xcodebuild[23098] <Error>: Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+Jul 12 19:22:22 macmini com.apple.dt.xcodebuild[23098] <Error>: Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+Jul 12 19:22:22 macmini com.apple.dt.xcodebuild[23098] <Error>: simdiskimaged returned error (invalid), marking disconnected.
+Jul 12 19:22:22 macmini com.apple.dt.xcodebuild[23098] <Error>: Unable to deliver request ({
+	    request = "notification_subscription";
+	    "set_path" = "/Users/macmini/Library/Developer/CoreSimulator/Devices";
+	}) because we are not connected to CoreSimulatorService.
