@@ -244,6 +244,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HomeKitBridge/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
@@ -281,6 +282,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HomeKitBridge/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";

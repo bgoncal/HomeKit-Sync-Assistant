@@ -1,5 +1,4 @@
 import SwiftUI
-import ServiceManagement
 
 @main
 struct HomeKitBridgeApp: App {

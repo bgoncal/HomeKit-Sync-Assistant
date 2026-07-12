@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(ServiceManagement) && os(macOS)
 import ServiceManagement
+#endif
 
 struct SettingsView: View {
     @EnvironmentObject private var syncEngine: SyncEngine
@@ -53,6 +55,7 @@ struct SettingsView: View {
             }
 
             Section("App") {
+                #if canImport(ServiceManagement) && os(macOS)
                 Toggle("Start at Login", isOn: Binding(
                     get: { startAtLogin },
                     set: { newValue in
@@ -66,6 +69,7 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                         .font(.footnote)
                 }
+                #endif
 
                 Button("Reset Onboarding") {
                     onboardingComplete = false
@@ -76,6 +80,7 @@ struct SettingsView: View {
         .padding(20)
     }
 
+    #if canImport(ServiceManagement) && os(macOS)
     private func setLoginItem(enabled: Bool) {
         do {
             if enabled {
@@ -88,4 +93,5 @@ struct SettingsView: View {
             loginItemError = error.localizedDescription
         }
     }
+    #endif
 }
