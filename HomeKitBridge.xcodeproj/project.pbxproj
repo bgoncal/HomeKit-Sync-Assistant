@@ -1,0 +1,327 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1000001 /* HomeKitBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* HomeKitBridgeApp.swift */; };
+		A1000002 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* MainTabView.swift */; };
+		A1000003 /* HomeKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* HomeKitManager.swift */; };
+		A1000004 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004 /* HTTPServer.swift */; };
+		A1000005 /* LogEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007 /* LogEntry.swift */; };
+		A1000006 /* LogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008 /* LogStore.swift */; };
+		A1000007 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009 /* SyncEngine.swift */; };
+		A1000008 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* OnboardingView.swift */; };
+		A1000009 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000012 /* DashboardView.swift */; };
+		A1000010 /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000013 /* SyncView.swift */; };
+		A1000011 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* LogsView.swift */; };
+		A1000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* SettingsView.swift */; };
+		A1000013 /* HAWebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* HAWebSocketClient.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A2000001 /* HomeKitBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitBridgeApp.swift; sourceTree = "<group>"; };
+		A2000002 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		A2000003 /* HomeKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitManager.swift; sourceTree = "<group>"; };
+		A2000004 /* HTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
+		A2000005 /* HomeKitBridge.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HomeKitBridge.entitlements; sourceTree = "<group>"; };
+		A2000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000007 /* LogEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogEntry.swift; sourceTree = "<group>"; };
+		A2000008 /* LogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogStore.swift; sourceTree = "<group>"; };
+		A2000009 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
+		A2000010 /* HomeKitBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HomeKitBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A2000011 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		A2000012 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		A2000013 /* SyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncView.swift; sourceTree = "<group>"; };
+		A2000014 /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
+		A2000015 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2000016 /* HAWebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAWebSocketClient.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A3000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A4000001 = {
+			isa = PBXGroup;
+			children = (
+				A4000002 /* HomeKitBridge */,
+				A4000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A4000002 /* HomeKitBridge */ = {
+			isa = PBXGroup;
+			children = (
+				A2000001 /* HomeKitBridgeApp.swift */,
+				A4000004 /* Models */,
+				A4000005 /* Services */,
+				A4000006 /* Views */,
+				A2000005 /* HomeKitBridge.entitlements */,
+				A2000006 /* Info.plist */,
+			);
+			path = HomeKitBridge;
+			sourceTree = "<group>";
+		};
+		A4000004 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A2000007 /* LogEntry.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A4000005 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A2000003 /* HomeKitManager.swift */,
+				A2000004 /* HTTPServer.swift */,
+				A2000008 /* LogStore.swift */,
+				A2000009 /* SyncEngine.swift */,
+				A2000016 /* HAWebSocketClient.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A4000006 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A2000011 /* OnboardingView.swift */,
+				A2000002 /* MainTabView.swift */,
+				A2000012 /* DashboardView.swift */,
+				A2000013 /* SyncView.swift */,
+				A2000014 /* LogsView.swift */,
+				A2000015 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A4000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A2000010 /* HomeKitBridge.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A5000001 /* HomeKitBridge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7000003 /* Build configuration list for PBXNativeTarget "HomeKitBridge" */;
+			buildPhases = (
+				A6000001 /* Sources */,
+				A3000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HomeKitBridge;
+			productName = HomeKitBridge;
+			productReference = A2000010 /* HomeKitBridge.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A8000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+			};
+			buildConfigurationList = A7000001 /* Build configuration list for PBXProject "HomeKitBridge" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A4000001;
+			productRefGroup = A4000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A5000001 /* HomeKitBridge */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A6000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000001 /* HomeKitBridgeApp.swift in Sources */,
+				A1000002 /* MainTabView.swift in Sources */,
+				A1000003 /* HomeKitManager.swift in Sources */,
+				A1000004 /* HTTPServer.swift in Sources */,
+				A1000005 /* LogEntry.swift in Sources */,
+				A1000006 /* LogStore.swift in Sources */,
+				A1000007 /* SyncEngine.swift in Sources */,
+				A1000008 /* OnboardingView.swift in Sources */,
+				A1000009 /* DashboardView.swift in Sources */,
+				A1000010 /* SyncView.swift in Sources */,
+				A1000011 /* LogsView.swift in Sources */,
+				A1000012 /* SettingsView.swift in Sources */,
+				A1000013 /* HAWebSocketClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A9000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A9000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		A9000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_ENTITLEMENTS = HomeKitBridge/HomeKitBridge.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SR9992X3G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HomeKitBridge/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "HomeKit Bridge";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge runs a local HTTP server to expose HomeKit data on your network.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bgoncal.HomeKitBridge;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx"; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A9000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_ENTITLEMENTS = HomeKitBridge/HomeKitBridge.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SR9992X3G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HomeKitBridge/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "HomeKit Bridge";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge runs a local HTTP server to expose HomeKit data on your network.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bgoncal.HomeKitBridge;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx"; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A7000001 /* Build configuration list for PBXProject "HomeKitBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A9000001 /* Debug */,
+				A9000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A7000003 /* Build configuration list for PBXNativeTarget "HomeKitBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A9000003 /* Debug */,
+				A9000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A8000001 /* Project object */;
+}
