@@ -73,6 +73,14 @@
 			path = HomeKitBridge;
 			sourceTree = "<group>";
 		};
+		A4000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A2000010 /* HomeKitBridge.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		A4000004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -104,14 +112,6 @@
 				A2000015 /* SettingsView.swift */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		A4000003 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				A2000010 /* HomeKitBridge.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -241,10 +241,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HomeKitBridge/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "HomeKit Bridge";
+				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge runs a local HTTP server to expose HomeKit data on your network.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -252,12 +252,13 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bgoncal.HomeKitBridge;
+				PRODUCT_BUNDLE_IDENTIFIER = com.panta.homekitsync;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx"; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -277,10 +278,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HomeKitBridge/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "HomeKit Bridge";
+				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge runs a local HTTP server to expose HomeKit data on your network.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -288,12 +289,13 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bgoncal.HomeKitBridge;
+				PRODUCT_BUNDLE_IDENTIFIER = com.panta.homekitsync;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx"; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
