@@ -35,7 +35,7 @@ struct LogsView: View {
                 .buttonStyle(.bordered)
             }
 
-            HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 TextField("Search activity", text: $search)
                     .textFieldStyle(.roundedBorder)
 

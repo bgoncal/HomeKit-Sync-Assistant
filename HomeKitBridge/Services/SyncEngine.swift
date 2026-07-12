@@ -18,6 +18,40 @@ enum SyncOperation: String, CaseIterable, Identifiable {
     case deviceNamesHomeToHA = "Sync Names: Apple Home → HA"
 
     var id: String { rawValue }
+
+    var displayTitle: String {
+        switch self {
+        case .roomsHAToHome:
+            return "Create Apple Home rooms from Home Assistant areas"
+        case .roomsHomeToHA:
+            return "Create Home Assistant areas from Apple Home rooms"
+        case .devicePlacementHAToHome:
+            return "Move Apple Home devices to match Home Assistant areas"
+        case .devicePlacementHomeToHA:
+            return "Update Home Assistant areas to match Apple Home rooms"
+        case .deviceNamesHAToHome:
+            return "Rename Apple Home devices from Home Assistant names"
+        case .deviceNamesHomeToHA:
+            return "Rename Home Assistant entities from Apple Home device names"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .roomsHAToHome:
+            return "Looks at Home Assistant areas and creates any missing rooms in Apple Home. Existing rooms are left in place."
+        case .roomsHomeToHA:
+            return "Looks at Apple Home rooms and creates any missing areas in Home Assistant. Existing areas are left in place."
+        case .devicePlacementHAToHome:
+            return "Moves matched Apple Home accessories into the rooms that correspond to their Home Assistant areas. Missing Apple Home rooms are created first."
+        case .devicePlacementHomeToHA:
+            return "Updates matched Home Assistant entities so their areas match the rooms currently used by their Apple Home accessories. Missing Home Assistant areas are created first."
+        case .deviceNamesHAToHome:
+            return "Renames matched Apple Home accessories to use their Home Assistant friendly names."
+        case .deviceNamesHomeToHA:
+            return "Renames matched Home Assistant entities to use the current Apple Home accessory names."
+        }
+    }
 }
 
 enum SyncActionType: String {

@@ -3,24 +3,28 @@ import SwiftUI
 struct BridgePage<Content: View>: View {
     let title: String
     let subtitle: String?
+    let showsHeader: Bool
     private let content: Content
 
-    init(title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) {
+    init(title: String, subtitle: String? = nil, showsHeader: Bool = true, @ViewBuilder content: () -> Content) {
         self.title = title
         self.subtitle = subtitle
+        self.showsHeader = showsHeader
         self.content = content()
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title)
-                        .font(.largeTitle.bold())
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                if showsHeader {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(title)
+                            .font(.largeTitle.bold())
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 

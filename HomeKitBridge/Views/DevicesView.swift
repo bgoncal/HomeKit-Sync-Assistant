@@ -18,13 +18,9 @@ struct DevicesView: View {
     var body: some View {
         NavigationStack(path: $path) {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Devices")
-                        .font(.largeTitle.bold())
-                    Text("Browse Apple Home accessories and check how they match Home Assistant.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Browse Apple Home accessories and check how they match Home Assistant.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
 
                 homePicker
 
@@ -124,7 +120,7 @@ private struct DeviceDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        BridgePage(title: accessory.name, subtitle: accessory.room?.name ?? "Default Room") {
+        BridgePage(title: accessory.name, subtitle: accessory.room?.name ?? "Default Room", showsHeader: false) {
             BridgeCard {
                 BridgeStatusHeader(
                     title: accessory.isReachable ? "Reachable" : "Not Reachable",

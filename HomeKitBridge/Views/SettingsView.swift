@@ -19,32 +19,35 @@ struct SettingsView: View {
     @State private var loginItemError: String?
 
     var body: some View {
-        Form {
+        List {
             Section {
-                TextField("Home Assistant URL", text: $haURL)
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                SecureField("Access token", text: $haToken)
+                SettingsContainer {
+                    TextField("Home Assistant URL", text: $haURL)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                    SecureField("Access token", text: $haToken)
 
-                Button {
-                    Task {
-                        isTesting = true
-                        testOK = await syncEngine.testHAConnection()
-                        isTesting = false
+                    Button {
+                        Task {
+                            isTesting = true
+                            testOK = await syncEngine.testHAConnection()
+                            isTesting = false
+                        }
+                    } label: {
+                        if isTesting {
+                            ProgressView()
+                        } else {
+                            Label("Test Connection", systemImage: "network")
+                        }
                     }
-                } label: {
-                    if isTesting {
-                        ProgressView()
-                    } else {
-                        Label("Test Connection", systemImage: "network")
+                    .disabled(isTesting)
+
+                    if let testOK {
+                        Label(testOK ? "Home Assistant is reachable" : "Connection failed", systemImage: testOK ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(testOK ? .green : .red)
                     }
                 }
-                .disabled(isTesting)
-
-                if let testOK {
-                    Label(testOK ? "Home Assistant is reachable" : "Connection failed", systemImage: testOK ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(testOK ? .green : .red)
-                }
+                .settingsContainerRow()
             } header: {
                 Text("Home Assistant")
             } footer: {
@@ -52,16 +55,19 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle("Start local API automatically", isOn: $autoStartServer)
+                SettingsContainer {
+                    Toggle("Start local API automatically", isOn: $autoStartServer)
 
-                DisclosureGroup("Local API details") {
-                    Stepper("Port: \(String(serverPort))", value: $serverPort, in: 1...65535)
-                        .onChange(of: serverPort) { _, newValue in
-                            server.port = newValue
-                        }
+                    DisclosureGroup("Local API details") {
+                        Stepper("Port: \(String(serverPort))", value: $serverPort, in: 1...65535)
+                            .onChange(of: serverPort) { _, newValue in
+                                server.port = newValue
+                            }
 
-                    LabeledContent("Current status", value: server.isRunning ? "Running" : "Stopped")
+                        LabeledContent("Current status", value: server.isRunning ? "Running" : "Stopped")
+                    }
                 }
+                .settingsContainerRow()
             } header: {
                 Text("Bridge")
             } footer: {
@@ -69,29 +75,34 @@ struct SettingsView: View {
             }
 
             Section("App") {
-                #if canImport(ServiceManagement) && os(macOS)
-                Toggle("Open at login", isOn: Binding(
-                    get: { startAtLogin },
-                    set: { newValue in
-                        startAtLogin = newValue
-                        setLoginItem(enabled: newValue)
+                SettingsContainer {
+                    #if canImport(ServiceManagement) && os(macOS)
+                    Toggle("Open at login", isOn: Binding(
+                        get: { startAtLogin },
+                        set: { newValue in
+                            startAtLogin = newValue
+                            setLoginItem(enabled: newValue)
+                        }
+                    ))
+
+                    if let loginItemError {
+                        Text(loginItemError)
+                            .foregroundStyle(.red)
+                            .font(.footnote)
                     }
-                ))
+                    #endif
 
-                if let loginItemError {
-                    Text(loginItemError)
-                        .foregroundStyle(.red)
-                        .font(.footnote)
+                    Button("Show Setup Again") {
+                        onboardingComplete = false
+                    }
                 }
-                #endif
-
-                Button("Show Setup Again") {
-                    onboardingComplete = false
-                }
+                .settingsContainerRow()
             }
         }
-        .formStyle(.grouped)
+        .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
         .padding(20)
         .navigationTitle("Settings")
     }
@@ -110,4 +121,33 @@ struct SettingsView: View {
         }
     }
     #endif
+}
+
+private struct SettingsContainer<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        BridgeCard {
+            content
+        }
+    }
+}
+
+private struct SettingsContainerRowModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+    }
+}
+
+private extension View {
+    func settingsContainerRow() -> some View {
+        modifier(SettingsContainerRowModifier())
+    }
 }

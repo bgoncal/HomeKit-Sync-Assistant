@@ -10,6 +10,8 @@
 		9AEAAAF53003F9B700CCABBB /* EndpointsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */; };
 		9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF63003FA3300CCABBB /* DevicesView.swift */; };
 		9AEAAAF93004074300CCABBB /* BridgeUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF83004074300CCABBB /* BridgeUI.swift */; };
+		9AEAAAFB300408F000CCABBB /* ScheduledActionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAFA300408F000CCABBB /* ScheduledActionManager.swift */; };
+		9AEAAAFD30040D0F00CCABBB /* ActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAFC30040D0F00CCABBB /* ActionsView.swift */; };
 		A1000001 /* HomeKitBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* HomeKitBridgeApp.swift */; };
 		A1000002 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* MainTabView.swift */; };
 		A1000003 /* HomeKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* HomeKitManager.swift */; };
@@ -30,6 +32,10 @@
 		9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsView.swift; sourceTree = "<group>"; };
 		9AEAAAF63003FA3300CCABBB /* DevicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicesView.swift; sourceTree = "<group>"; };
 		9AEAAAF83004074300CCABBB /* BridgeUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeUI.swift; sourceTree = "<group>"; };
+		9AEAAAFA300408F000CCABBB /* ScheduledActionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledActionManager.swift; sourceTree = "<group>"; };
+		9AEAAAFC30040D0F00CCABBB /* ActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsView.swift; sourceTree = "<group>"; };
+		9AEAAAFE30040E2D00CCABBB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9AEAAAFF30040EB100CCABBB /* Assets 2.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets 2.xcassets"; sourceTree = "<group>"; };
 		A2000001 /* HomeKitBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitBridgeApp.swift; sourceTree = "<group>"; };
 		A2000002 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A2000003 /* HomeKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitManager.swift; sourceTree = "<group>"; };
@@ -77,6 +83,8 @@
 				A2000005 /* HomeKitBridge.entitlements */,
 				A2000006 /* Info.plist */,
 				9AEAAAF33003F22300CCABBB /* AppIcon.icon */,
+				9AEAAAFE30040E2D00CCABBB /* Assets.xcassets */,
+				9AEAAAFF30040EB100CCABBB /* Assets 2.xcassets */,
 			);
 			path = HomeKitBridge;
 			sourceTree = "<group>";
@@ -105,6 +113,7 @@
 				A2000008 /* LogStore.swift */,
 				A2000009 /* SyncEngine.swift */,
 				A2000016 /* HAWebSocketClient.swift */,
+				9AEAAAFA300408F000CCABBB /* ScheduledActionManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -121,6 +130,7 @@
 				9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */,
 				9AEAAAF63003FA3300CCABBB /* DevicesView.swift */,
 				9AEAAAF83004074300CCABBB /* BridgeUI.swift */,
+				9AEAAAFC30040D0F00CCABBB /* ActionsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -179,7 +189,9 @@
 			files = (
 				A1000001 /* HomeKitBridgeApp.swift in Sources */,
 				A1000002 /* MainTabView.swift in Sources */,
+				9AEAAAFB300408F000CCABBB /* ScheduledActionManager.swift in Sources */,
 				A1000003 /* HomeKitManager.swift in Sources */,
+				9AEAAAFD30040D0F00CCABBB /* ActionsView.swift in Sources */,
 				A1000004 /* HTTPServer.swift in Sources */,
 				9AEAAAF93004074300CCABBB /* BridgeUI.swift in Sources */,
 				A1000005 /* LogEntry.swift in Sources */,
@@ -253,7 +265,18 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4SR9992X3G;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HomeKitBridge/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
@@ -261,6 +284,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -293,7 +317,18 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4SR9992X3G;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HomeKitBridge/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
@@ -301,6 +336,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

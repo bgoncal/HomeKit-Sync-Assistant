@@ -216,25 +216,11 @@ struct SyncView: View {
     }
 
     private func operationTitle(_ operation: SyncOperation) -> String {
-        switch operation {
-        case .roomsHAToHome: return "Rooms from Home Assistant"
-        case .roomsHomeToHA: return "Rooms from Apple Home"
-        case .devicePlacementHAToHome: return "Device rooms from Home Assistant"
-        case .devicePlacementHomeToHA: return "Device rooms from Apple Home"
-        case .deviceNamesHAToHome: return "Device names from Home Assistant"
-        case .deviceNamesHomeToHA: return "Device names from Apple Home"
-        }
+        operation.displayTitle
     }
 
     private func operationDescription(_ operation: SyncOperation) -> String {
-        switch operation {
-        case .roomsHAToHome: return "Creates or renames Apple Home rooms to match Home Assistant areas."
-        case .roomsHomeToHA: return "Creates Home Assistant areas to match your Apple Home rooms."
-        case .devicePlacementHAToHome: return "Moves Apple Home devices into the rooms used by matching Home Assistant entities."
-        case .devicePlacementHomeToHA: return "Updates Home Assistant areas to match each device room in Apple Home."
-        case .deviceNamesHAToHome: return "Renames Apple Home devices to match Home Assistant entity names."
-        case .deviceNamesHomeToHA: return "Renames Home Assistant entities to match device names in Apple Home."
-        }
+        operation.description
     }
 
     private func hasTechnicalDetails(_ change: SyncChange) -> Bool {
