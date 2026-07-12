@@ -24,7 +24,7 @@ struct MainTabView: View {
 
             LogsView()
                 .tabItem {
-                    Label("Logs", systemImage: "doc.text.magnifyingglass")
+                    Label("Activity", systemImage: "clock")
                 }
         }
         #endif
@@ -49,7 +49,7 @@ struct MainTabView: View {
 
         EndpointsView()
             .tabItem {
-                Label("Endpoints", systemImage: "point.3.connected.trianglepath.dotted")
+                Label("Local API", systemImage: "point.3.connected.trianglepath.dotted")
             }
 
         SettingsView()

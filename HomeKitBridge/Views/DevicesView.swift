@@ -18,8 +18,13 @@ struct DevicesView: View {
     var body: some View {
         NavigationStack(path: $path) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Devices")
-                    .font(.largeTitle.bold())
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Devices")
+                        .font(.largeTitle.bold())
+                    Text("Browse Apple Home accessories and check how they match Home Assistant.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
 
                 homePicker
 
@@ -29,6 +34,7 @@ struct DevicesView: View {
                             accessoryRow(accessory)
                         }
                     }
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 } else {
                     Spacer()
                     ContentUnavailableView("No Apple Home Selected", systemImage: "house", description: Text("Choose an Apple Home to list its devices."))
@@ -36,6 +42,7 @@ struct DevicesView: View {
                 }
             }
             .padding(20)
+            .navigationTitle("Devices")
             .navigationDestination(for: String.self) { accessoryId in
                 if let accessory = homeKitManager.accessory(byId: accessoryId) {
                     DeviceDetailView(accessory: accessory)
@@ -59,10 +66,7 @@ struct DevicesView: View {
     }
 
     private var homePicker: some View {
-        HStack(spacing: 8) {
-            Text("Apple Home")
-                .font(.headline)
-
+        BridgeCard {
             Picker("Apple Home", selection: Binding(
                 get: { selectedHomeId },
                 set: { newHomeId in
@@ -71,7 +75,7 @@ struct DevicesView: View {
                 }
             )) {
                 if homeKitManager.homes.isEmpty {
-                    Text("No HomeKit homes found").tag("")
+                    Text("No Apple homes found").tag("")
                 } else {
                     ForEach(homeKitManager.homes, id: \.uniqueIdentifier) { home in
                         Text(home.name).tag(home.uniqueIdentifier.uuidString)
@@ -84,26 +88,23 @@ struct DevicesView: View {
     }
 
     private func accessorySubtitle(_ accessory: HMAccessory) -> String {
-        [accessory.manufacturer, accessory.model]
+        [accessory.room?.name ?? "Default Room", accessory.manufacturer, accessory.model]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
-            .joined(separator: " ")
+            .joined(separator: ", ")
     }
 
     private func accessoryRow(_ accessory: HMAccessory) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: "sensor.tag.radiowaves.forward")
-                .foregroundStyle(.blue)
+            Image(systemName: accessory.isReachable ? "sensor.tag.radiowaves.forward" : "sensor.tag.radiowaves.forward.slash")
+                .foregroundStyle(accessory.isReachable ? .blue : .secondary)
                 .frame(width: 22)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(accessory.name)
                     .font(.headline)
-                Text(accessory.room?.name ?? "Default Room")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
                 Text(accessorySubtitle(accessory))
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
@@ -123,156 +124,154 @@ private struct DeviceDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(accessory.name)
-                    .font(.largeTitle.bold())
+        BridgePage(title: accessory.name, subtitle: accessory.room?.name ?? "Default Room") {
+            BridgeCard {
+                BridgeStatusHeader(
+                    title: accessory.isReachable ? "Reachable" : "Not Reachable",
+                    message: accessory.isReachable ? "Apple Home reports this device as available." : "Apple Home cannot currently reach this device.",
+                    systemImage: accessory.isReachable ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
+                    tint: accessory.isReachable ? .green : .orange
+                )
 
-                infoSection(title: "Apple Home", rows: homeKitRows)
-
-                servicesSection
-
-                if isLoading {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Loading Home Assistant data")
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary.opacity(0.35))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .font(.callout)
-                }
-
-                if let homeAssistantInfo {
-                    homeAssistantSection(homeAssistantInfo)
-                } else if !isLoading {
-                    ContentUnavailableView("No Home Assistant Match", systemImage: "link.badge.plus", description: Text("The HomeKit serial number did not match a Home Assistant entity ID."))
-                        .frame(maxWidth: .infinity)
+                VStack(spacing: 8) {
+                    BridgeInfoRow(label: "Manufacturer", value: accessory.manufacturer ?? "Unavailable")
+                    BridgeInfoRow(label: "Model", value: accessory.model ?? "Unavailable")
+                    BridgeInfoRow(label: "Category", value: accessory.category.localizedDescription)
+                    BridgeInfoRow(label: "Serial Number", value: serialNumber.isEmpty ? "Unavailable" : serialNumber, selectable: true)
                 }
             }
-            .padding(20)
+
+            homeAssistantSummary
+            technicalHomeKitSection
+            servicesSection
         }
         .task(id: accessory.uniqueIdentifier) {
             await loadHomeAssistantInfo()
         }
     }
 
-    private var homeKitRows: [InfoRow] {
-        [
-            InfoRow(label: "Name", value: accessory.name),
-            InfoRow(label: "Identifier", value: accessory.uniqueIdentifier.uuidString),
-            InfoRow(label: "Room", value: accessory.room?.name ?? "Default Room"),
-            InfoRow(label: "Manufacturer", value: accessory.manufacturer ?? "Unavailable"),
-            InfoRow(label: "Model", value: accessory.model ?? "Unavailable"),
-            InfoRow(label: "Serial Number", value: serialNumber.isEmpty ? "Unavailable" : serialNumber),
-            InfoRow(label: "Reachable", value: accessory.isReachable ? "Yes" : "No"),
-            InfoRow(label: "Blocked", value: accessory.isBlocked ? "Yes" : "No"),
-            InfoRow(label: "Bridged", value: accessory.isBridged ? "Yes" : "No"),
-            InfoRow(label: "Category", value: accessory.category.localizedDescription)
-        ]
+    @ViewBuilder
+    private var homeAssistantSummary: some View {
+        if isLoading {
+            BridgeCard {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Checking Home Assistant match")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else if let errorMessage {
+            BridgeCard {
+                BridgeStatusHeader(
+                    title: "Could Not Check Home Assistant",
+                    message: errorMessage,
+                    systemImage: "exclamationmark.triangle.fill",
+                    tint: .red
+                )
+            }
+        } else if let homeAssistantInfo {
+            BridgeCard {
+                BridgeStatusHeader(
+                    title: "Matched in Home Assistant",
+                    message: homeAssistantInfo.areaName.map { "Assigned to \($0)." } ?? "Matched, but not assigned to an area.",
+                    systemImage: "link.circle.fill",
+                    tint: .green
+                )
+
+                VStack(spacing: 8) {
+                    BridgeInfoRow(label: "Entity", value: homeAssistantInfo.entityId, selectable: true)
+                    BridgeInfoRow(label: "Area", value: homeAssistantInfo.areaName ?? "Unassigned")
+                }
+
+                DisclosureGroup("Home Assistant details") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let deviceId = homeAssistantInfo.deviceId {
+                            BridgeInfoRow(label: "Device ID", value: deviceId, selectable: true)
+                        }
+                        jsonSection(title: "State", object: homeAssistantInfo.state)
+                        jsonSection(title: "Entity Registry", object: homeAssistantInfo.entity)
+                        if let device = homeAssistantInfo.device {
+                            jsonSection(title: "Device Registry", object: device)
+                        }
+                        if let area = homeAssistantInfo.area {
+                            jsonSection(title: "Area Registry", object: area)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        } else {
+            BridgeCard {
+                BridgeStatusHeader(
+                    title: "No Home Assistant Match",
+                    message: "The HomeKit serial number did not match a Home Assistant entity ID.",
+                    systemImage: "link.badge.plus",
+                    tint: .orange
+                )
+            }
+        }
+    }
+
+    private var technicalHomeKitSection: some View {
+        BridgeCard {
+            DisclosureGroup("Apple Home details") {
+                VStack(spacing: 8) {
+                    BridgeInfoRow(label: "Name", value: accessory.name)
+                    BridgeInfoRow(label: "Identifier", value: accessory.uniqueIdentifier.uuidString, selectable: true)
+                    BridgeInfoRow(label: "Room", value: accessory.room?.name ?? "Default Room")
+                    BridgeInfoRow(label: "Reachable", value: accessory.isReachable ? "Yes" : "No")
+                    BridgeInfoRow(label: "Blocked", value: accessory.isBlocked ? "Yes" : "No")
+                    BridgeInfoRow(label: "Bridged", value: accessory.isBridged ? "Yes" : "No")
+                }
+                .padding(.top, 8)
+            }
+        }
     }
 
     private var servicesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("HomeKit Services")
-                .font(.title2.bold())
-
-            ForEach(accessory.services, id: \.uniqueIdentifier) { service in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(service.name)
-                        .font(.headline)
-                    Text(service.serviceType)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-
-                    ForEach(service.characteristics, id: \.uniqueIdentifier) { characteristic in
-                        HStack(alignment: .top) {
-                            Text(characteristic.characteristicType)
+        BridgeCard {
+            DisclosureGroup("HomeKit services") {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(accessory.services, id: \.uniqueIdentifier) { service in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(service.name)
+                                .font(.headline)
+                            Text(service.serviceType)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
-                            Spacer()
-                            Text(describe(characteristic.value))
-                                .font(.caption)
-                                .textSelection(.enabled)
+
+                            ForEach(service.characteristics, id: \.uniqueIdentifier) { characteristic in
+                                LabeledContent {
+                                    Text(describe(characteristic.value))
+                                        .font(.caption)
+                                        .textSelection(.enabled)
+                                        .multilineTextAlignment(.trailing)
+                                } label: {
+                                    Text(characteristic.characteristicType)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
                         }
+                        .padding(12)
+                        .background(.quaternary.opacity(0.35))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                 }
-                .padding()
-                .background(.quaternary.opacity(0.35))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .padding(.top, 8)
             }
-        }
-    }
-
-    private func homeAssistantSection(_ info: HomeAssistantDeviceInfo) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Home Assistant")
-                .font(.title2.bold())
-
-            infoSection(title: "Match", rows: [
-                InfoRow(label: "Matched Entity ID", value: info.entityId),
-                InfoRow(label: "Area", value: info.areaName ?? "Unassigned"),
-                InfoRow(label: "Device ID", value: info.deviceId ?? "Unavailable")
-            ])
-
-            jsonSection(title: "State", object: info.state)
-            jsonSection(title: "Entity Registry", object: info.entity)
-
-            if let device = info.device {
-                jsonSection(title: "Device Registry", object: device)
-            }
-
-            if let area = info.area {
-                jsonSection(title: "Area Registry", object: area)
-            }
-        }
-    }
-
-    private func infoSection(title: String, rows: [InfoRow]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.title2.bold())
-
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(rows) { row in
-                    HStack(alignment: .top) {
-                        Text(row.label)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 130, alignment: .leading)
-                        Text(row.value)
-                            .textSelection(.enabled)
-                        Spacer(minLength: 0)
-                    }
-                }
-            }
-            .padding()
-            .background(.quaternary.opacity(0.35))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 
     private func jsonSection(title: String, object: [String: Any]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.headline)
-
-            Text(prettyJSON(object))
-                .font(.system(.caption, design: .monospaced))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(.black.opacity(0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            BridgeCodeBlock(content: prettyJSON(object))
         }
     }
 
@@ -368,12 +367,6 @@ private struct DeviceDetailView: View {
         }
         return text
     }
-}
-
-private struct InfoRow: Identifiable {
-    let id = UUID()
-    let label: String
-    let value: String
 }
 
 private struct HomeAssistantDeviceInfo {

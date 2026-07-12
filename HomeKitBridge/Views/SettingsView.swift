@@ -20,43 +20,57 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Home Assistant") {
-                TextField("URL", text: $haURL)
+            Section {
+                TextField("Home Assistant URL", text: $haURL)
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
-                SecureField("Long-lived token", text: $haToken)
+                SecureField("Access token", text: $haToken)
 
-                HStack {
-                    Button {
-                        Task {
-                            isTesting = true
-                            testOK = await syncEngine.testHAConnection()
-                            isTesting = false
-                        }
-                    } label: {
-                        if isTesting { ProgressView() } else { Text("Test Connection") }
+                Button {
+                    Task {
+                        isTesting = true
+                        testOK = await syncEngine.testHAConnection()
+                        isTesting = false
                     }
-                    .disabled(isTesting)
-
-                    if let testOK {
-                        Label(testOK ? "Connected" : "Failed", systemImage: testOK ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(testOK ? .green : .red)
+                } label: {
+                    if isTesting {
+                        ProgressView()
+                    } else {
+                        Label("Test Connection", systemImage: "network")
                     }
                 }
+                .disabled(isTesting)
+
+                if let testOK {
+                    Label(testOK ? "Home Assistant is reachable" : "Connection failed", systemImage: testOK ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(testOK ? .green : .red)
+                }
+            } header: {
+                Text("Home Assistant")
+            } footer: {
+                Text("Use the same address you open in a browser, plus a long-lived access token from your Home Assistant profile.")
             }
 
-            Section("Server") {
-                Stepper("Port: \(String(serverPort))", value: $serverPort, in: 1...65535)
-                    .onChange(of: serverPort) { _, newValue in
-                        server.port = newValue
-                    }
+            Section {
+                Toggle("Start local API automatically", isOn: $autoStartServer)
 
-                Toggle("Start server automatically", isOn: $autoStartServer)
+                DisclosureGroup("Local API details") {
+                    Stepper("Port: \(String(serverPort))", value: $serverPort, in: 1...65535)
+                        .onChange(of: serverPort) { _, newValue in
+                            server.port = newValue
+                        }
+
+                    LabeledContent("Current status", value: server.isRunning ? "Running" : "Stopped")
+                }
+            } header: {
+                Text("Bridge")
+            } footer: {
+                Text("Most people can leave these defaults unchanged. Change the port only if another local service already uses it.")
             }
 
             Section("App") {
                 #if canImport(ServiceManagement) && os(macOS)
-                Toggle("Start at Login", isOn: Binding(
+                Toggle("Open at login", isOn: Binding(
                     get: { startAtLogin },
                     set: { newValue in
                         startAtLogin = newValue
@@ -71,13 +85,15 @@ struct SettingsView: View {
                 }
                 #endif
 
-                Button("Reset Onboarding") {
+                Button("Show Setup Again") {
                     onboardingComplete = false
                 }
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .padding(20)
+        .navigationTitle("Settings")
     }
 
     #if canImport(ServiceManagement) && os(macOS)

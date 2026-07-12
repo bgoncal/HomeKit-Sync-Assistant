@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		9AEAAAF53003F9B700CCABBB /* EndpointsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */; };
 		9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF63003FA3300CCABBB /* DevicesView.swift */; };
+		9AEAAAF93004074300CCABBB /* BridgeUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF83004074300CCABBB /* BridgeUI.swift */; };
 		A1000001 /* HomeKitBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* HomeKitBridgeApp.swift */; };
 		A1000002 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* MainTabView.swift */; };
 		A1000003 /* HomeKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* HomeKitManager.swift */; };
@@ -28,6 +29,7 @@
 		9AEAAAF33003F22300CCABBB /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsView.swift; sourceTree = "<group>"; };
 		9AEAAAF63003FA3300CCABBB /* DevicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicesView.swift; sourceTree = "<group>"; };
+		9AEAAAF83004074300CCABBB /* BridgeUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeUI.swift; sourceTree = "<group>"; };
 		A2000001 /* HomeKitBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitBridgeApp.swift; sourceTree = "<group>"; };
 		A2000002 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A2000003 /* HomeKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitManager.swift; sourceTree = "<group>"; };
@@ -118,6 +120,7 @@
 				A2000015 /* SettingsView.swift */,
 				9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */,
 				9AEAAAF63003FA3300CCABBB /* DevicesView.swift */,
+				9AEAAAF83004074300CCABBB /* BridgeUI.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -178,6 +181,7 @@
 				A1000002 /* MainTabView.swift in Sources */,
 				A1000003 /* HomeKitManager.swift in Sources */,
 				A1000004 /* HTTPServer.swift in Sources */,
+				9AEAAAF93004074300CCABBB /* BridgeUI.swift in Sources */,
 				A1000005 /* LogEntry.swift in Sources */,
 				A1000006 /* LogStore.swift in Sources */,
 				9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */,
@@ -242,6 +246,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_ENTITLEMENTS = HomeKitBridge/HomeKitBridge.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -256,6 +261,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -272,7 +278,7 @@
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 			};
 			name = Debug;
 		};
@@ -280,6 +286,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_ENTITLEMENTS = HomeKitBridge/HomeKitBridge.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -294,6 +301,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -310,7 +318,7 @@
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 			};
 			name = Release;
 		};

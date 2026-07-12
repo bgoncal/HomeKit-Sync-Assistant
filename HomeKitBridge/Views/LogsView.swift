@@ -19,54 +19,93 @@ struct LogsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Logs")
-                    .font(.largeTitle.bold())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Activity")
+                        .font(.largeTitle.bold())
+                    Text("Recent sync, server, and connection events.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Button("Clear") {
+                Button {
                     logStore.clear()
+                } label: {
+                    Label("Clear", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
             }
 
             HStack(spacing: 12) {
-                TextField("Search logs", text: $search)
+                TextField("Search activity", text: $search)
                     .textFieldStyle(.roundedBorder)
 
                 Picker("Category", selection: $selectedCategory) {
                     Text("All").tag("all")
-                    ForEach(LogCategory.allCases, id: \.rawValue) { c in
-                        Text(c.rawValue.capitalized).tag(c.rawValue)
+                    ForEach(LogCategory.allCases, id: \.rawValue) { category in
+                        Text(categoryTitle(category)).tag(category.rawValue)
                     }
                 }
-                .pickerStyle(.menu)
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
             }
 
-            List(filtered) { entry in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(entry.timestamp.formatted(date: .abbreviated, time: .standard))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(entry.category.rawValue.uppercased())
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(entry.category.color.opacity(0.18))
-                            .foregroundStyle(entry.category.color)
-                            .clipShape(Capsule())
-                    }
-                    Text(entry.message)
-                        .font(.headline)
-                    if let details = entry.details, !details.isEmpty {
-                        Text(details)
-                            .foregroundStyle(.secondary)
-                            .font(.callout)
-                    }
+            if filtered.isEmpty {
+                Spacer()
+                ContentUnavailableView("No Activity", systemImage: "clock", description: Text("Matching events will appear here as the bridge runs."))
+                Spacer()
+            } else {
+                List(filtered) { entry in
+                    logRow(entry)
+                        .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
             }
         }
         .padding(20)
+        .navigationTitle("Activity")
+    }
+
+    private func logRow(_ entry: LogEntry) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Label(categoryTitle(entry.category), systemImage: icon(for: entry.category))
+                    .font(.caption.bold())
+                    .foregroundStyle(entry.category.color)
+                Spacer()
+                Text(entry.timestamp.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(entry.message)
+                .font(.headline)
+
+            if let details = entry.details, !details.isEmpty {
+                DisclosureGroup("Details") {
+                    Text(details)
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 6)
+                }
+                .font(.callout)
+            }
+        }
+    }
+
+    private func categoryTitle(_ category: LogCategory) -> String {
+        switch category {
+        case .sync: return "Sync"
+        case .server: return "Server"
+        case .error: return "Errors"
+        }
+    }
+
+    private func icon(for category: LogCategory) -> String {
+        switch category {
+        case .sync: return "arrow.triangle.2.circlepath"
+        case .server: return "server.rack"
+        case .error: return "exclamationmark.triangle.fill"
+        }
     }
 }

@@ -105,21 +105,29 @@ struct EndpointsView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Endpoints")
-                    .font(.largeTitle.bold())
+        BridgePage(
+            title: "Local API",
+            subtitle: "Reference for automations and local integrations. Request and response examples are tucked away until needed."
+        ) {
+            BridgeCard {
+                BridgeStatusHeader(
+                    title: "Developer Reference",
+                    message: "Use these endpoints from trusted tools on your local network.",
+                    systemImage: "point.3.connected.trianglepath.dotted",
+                    tint: .blue
+                )
+            }
 
+            LazyVStack(spacing: 12) {
                 ForEach(endpoints) { endpoint in
                     endpointCard(endpoint)
                 }
             }
-            .padding(20)
         }
     }
 
     private func endpointCard(_ endpoint: EndpointInfo) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        BridgeCard {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(endpoint.method)
                     .font(.caption.bold())
@@ -127,40 +135,39 @@ struct EndpointsView: View {
                     .padding(.vertical, 4)
                     .background(methodColor(endpoint.method).opacity(0.18))
                     .foregroundStyle(methodColor(endpoint.method))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
                 Text(endpoint.path)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
             }
 
             Text(endpoint.summary)
+                .font(.callout)
                 .foregroundStyle(.secondary)
 
-            if let requestBody = endpoint.requestBody {
-                codeBlock(title: "Expected JSON", content: requestBody)
+            DisclosureGroup("Examples") {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let requestBody = endpoint.requestBody {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Request JSON")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            BridgeCodeBlock(content: requestBody)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Response JSON")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        BridgeCodeBlock(content: endpoint.responseBody)
+                    }
+                }
+                .padding(.top, 8)
             }
-
-            codeBlock(title: "Response JSON", content: endpoint.responseBody)
-        }
-        .padding()
-        .background(.quaternary.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func codeBlock(title: String, content: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-
-            Text(content)
-                .font(.system(.caption, design: .monospaced))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(.black.opacity(0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
 

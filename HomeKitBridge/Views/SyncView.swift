@@ -11,43 +11,52 @@ struct SyncView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Synchronization")
-                .font(.largeTitle.bold())
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sync")
+                    .font(.largeTitle.bold())
+                Text("Preview changes first, then apply them when the plan looks right.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
 
-            VStack(alignment: .leading, spacing: 10) {
+            BridgeCard {
                 homePicker
 
-                Picker("Operation", selection: $operation) {
+                Picker("What to sync", selection: $operation) {
                     ForEach(SyncOperation.allCases) { op in
-                        Text(op.rawValue).tag(op)
+                        Text(operationTitle(op)).tag(op)
                     }
                 }
                 .pickerStyle(.menu)
                 .onChange(of: operation) { _, _ in
                     dryRunResult = nil
                 }
-            }
 
-            HStack(spacing: 12) {
-                Button("Dry Run") {
-                    Task {
-                        await runDryRun()
+                Text(operationDescription(operation))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await runDryRun() }
+                    } label: {
+                        Label("Preview Changes", systemImage: "list.bullet.clipboard")
                     }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isWorking || homeKitManager.primaryHome == nil)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isWorking || homeKitManager.primaryHome == nil)
 
-                Button("Execute") {
-                    Task {
-                        await execute()
+                    Button {
+                        Task { await execute() }
+                    } label: {
+                        Label("Apply", systemImage: "checkmark.circle")
                     }
-                }
-                .buttonStyle(.bordered)
-                .disabled(isWorking || dryRunResult == nil || homeKitManager.primaryHome == nil)
+                    .buttonStyle(.bordered)
+                    .disabled(isWorking || dryRunResult == nil || homeKitManager.primaryHome == nil)
 
-                if isWorking {
-                    ProgressView()
-                        .padding(.leading, 4)
+                    if isWorking {
+                        ProgressView()
+                            .padding(.leading, 4)
+                    }
                 }
             }
 
@@ -56,66 +65,101 @@ struct SyncView: View {
             }
 
             if let errorMessage {
-                Text(errorMessage)
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                     .font(.callout)
             }
 
             if let dryRunResult {
-                Text(dryRunResult.summary)
-                    .font(.headline)
+                resultSummary(dryRunResult)
 
                 List(dryRunResult.changes) { change in
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: icon(for: change.action))
-                            .foregroundStyle(iconColor(for: change.action))
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(change.title)
-                                .font(.headline)
-                            Text(change.details)
-                                .foregroundStyle(.secondary)
-                                .font(.callout)
-                        }
-                    }
-                    .padding(.vertical, 2)
+                    changeRow(change)
+                        .padding(.vertical, 3)
                 }
             } else {
                 Spacer()
-                ContentUnavailableView("No dry run yet", systemImage: "list.bullet.clipboard", description: Text("Run a dry run to preview all changes before executing."))
+                ContentUnavailableView("No Preview Yet", systemImage: "list.bullet.clipboard", description: Text("Preview changes to see exactly what the bridge would update."))
                 Spacer()
             }
         }
         .padding(20)
+        .navigationTitle("Sync")
     }
 
     private var homePicker: some View {
-        HStack(spacing: 8) {
-            Text("Apple Home")
-                .font(.headline)
-
-            Picker("Apple Home", selection: Binding(
-                get: { homeKitManager.primaryHome?.uniqueIdentifier.uuidString ?? "" },
-                set: { newHomeId in
-                    homeKitManager.selectHome(id: newHomeId)
-                    dryRunResult = nil
-                }
-            )) {
-                if homeKitManager.homes.isEmpty {
-                    Text("No HomeKit homes found").tag("")
-                } else {
-                    ForEach(homeKitManager.homes, id: \.uniqueIdentifier) { home in
-                        Text(home.name).tag(home.uniqueIdentifier.uuidString)
-                    }
+        Picker("Apple Home", selection: Binding(
+            get: { homeKitManager.primaryHome?.uniqueIdentifier.uuidString ?? "" },
+            set: { newHomeId in
+                homeKitManager.selectHome(id: newHomeId)
+                dryRunResult = nil
+            }
+        )) {
+            if homeKitManager.homes.isEmpty {
+                Text("No Apple homes found").tag("")
+            } else {
+                ForEach(homeKitManager.homes, id: \.uniqueIdentifier) { home in
+                    Text(home.name).tag(home.uniqueIdentifier.uuidString)
                 }
             }
-            .pickerStyle(.menu)
-            .disabled(isWorking || homeKitManager.homes.isEmpty)
+        }
+        .pickerStyle(.menu)
+        .disabled(isWorking || homeKitManager.homes.isEmpty)
+    }
+
+    private func resultSummary(_ result: DryRunResult) -> some View {
+        BridgeCard {
+            BridgeStatusHeader(
+                title: result.changes.isEmpty ? "Nothing to Change" : "Preview Ready",
+                message: result.summary,
+                systemImage: result.changes.isEmpty ? "checkmark.circle.fill" : "exclamationmark.arrow.triangle.2.circlepath",
+                tint: result.changes.isEmpty ? .green : .orange
+            )
+        }
+    }
+
+    private func changeRow(_ change: SyncChange) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: icon(for: change.action))
+                    .foregroundStyle(iconColor(for: change.action))
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(change.title)
+                        .font(.headline)
+                    Text(change.details)
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                }
+            }
+
+            if hasTechnicalDetails(change) {
+                DisclosureGroup("Technical details") {
+                    VStack(spacing: 6) {
+                        if let accessoryId = change.accessoryId {
+                            BridgeInfoRow(label: "Accessory", value: accessoryId, selectable: true)
+                        }
+                        if let roomId = change.roomId {
+                            BridgeInfoRow(label: "Room", value: roomId, selectable: true)
+                        }
+                        if let homeId = change.homeId {
+                            BridgeInfoRow(label: "Home", value: homeId, selectable: true)
+                        }
+                        if let extraData = change.extraData {
+                            ForEach(extraData.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                                BridgeInfoRow(label: key, value: value, selectable: true)
+                            }
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                .font(.callout)
+            }
         }
     }
 
     private func progressStatusView(_ progress: SyncProgress) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        BridgeCard {
             HStack(spacing: 10) {
                 if progress.fractionCompleted == nil {
                     ProgressView()
@@ -142,9 +186,6 @@ struct SyncView: View {
                 }
             }
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func runDryRun() async {
@@ -168,9 +209,36 @@ struct SyncView: View {
 
         do {
             try await syncEngine.execute(dryRunResult)
+            self.dryRunResult = nil
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func operationTitle(_ operation: SyncOperation) -> String {
+        switch operation {
+        case .roomsHAToHome: return "Rooms from Home Assistant"
+        case .roomsHomeToHA: return "Rooms from Apple Home"
+        case .devicePlacementHAToHome: return "Device rooms from Home Assistant"
+        case .devicePlacementHomeToHA: return "Device rooms from Apple Home"
+        case .deviceNamesHAToHome: return "Device names from Home Assistant"
+        case .deviceNamesHomeToHA: return "Device names from Apple Home"
+        }
+    }
+
+    private func operationDescription(_ operation: SyncOperation) -> String {
+        switch operation {
+        case .roomsHAToHome: return "Creates or renames Apple Home rooms to match Home Assistant areas."
+        case .roomsHomeToHA: return "Creates Home Assistant areas to match your Apple Home rooms."
+        case .devicePlacementHAToHome: return "Moves Apple Home devices into the rooms used by matching Home Assistant entities."
+        case .devicePlacementHomeToHA: return "Updates Home Assistant areas to match each device room in Apple Home."
+        case .deviceNamesHAToHome: return "Renames Apple Home devices to match Home Assistant entity names."
+        case .deviceNamesHomeToHA: return "Renames Home Assistant entities to match device names in Apple Home."
+        }
+    }
+
+    private func hasTechnicalDetails(_ change: SyncChange) -> Bool {
+        change.accessoryId != nil || change.roomId != nil || change.homeId != nil || change.extraData?.isEmpty == false
     }
 
     private func icon(for action: SyncActionType) -> String {
