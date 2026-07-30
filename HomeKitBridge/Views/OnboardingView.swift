@@ -15,46 +15,67 @@ struct OnboardingView: View {
     private let stepsCount = 5
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Text("HomeKit Bridge Setup")
-                    .font(.largeTitle.bold())
-                Spacer()
-                Text("Step \(step + 1) of \(stepsCount)")
-                    .foregroundStyle(.secondary)
-            }
+        ZStack {
+            AmbientGlow()
 
-            ProgressView(value: Double(step + 1), total: Double(stepsCount))
-
-            Group {
-                switch step {
-                case 0: welcomeStep
-                case 1: homeKitStep
-                case 2: homeAssistantStep
-                case 3: importantNoteStep
-                default: doneStep
+            VStack(alignment: .leading, spacing: 20) {
+                HStack {
+                    Text("HomeKit Bridge Setup")
+                        .font(.largeTitle.bold())
+                    Spacer()
+                    Text("Step \(step + 1) of \(stepsCount)")
+                        .foregroundStyle(.secondary)
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            HStack {
-                if step > 0 {
-                    Button("Back") { step -= 1 }
-                }
-                Spacer()
-                if step < stepsCount - 1 {
-                    Button("Next") { step += 1 }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canContinue)
-                } else {
-                    Button("Start Using App") {
-                        onboardingComplete = true
+                ProgressView(value: Double(step + 1), total: Double(stepsCount))
+
+                Group {
+                    switch step {
+                    case 0: welcomeStep
+                    case 1: homeKitStep
+                    case 2: homeAssistantStep
+                    case 3: importantNoteStep
+                    default: doneStep
                     }
-                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                HStack {
+                    if step > 0 {
+                        Button("Back") { step -= 1 }
+                    }
+                    Spacer()
+                    if step < stepsCount - 1 {
+                        Button("Next") { step += 1 }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!canContinue)
+                            .glow(canContinue ? .accentColor : .clear)
+                    } else {
+                        Button("Start Using App") {
+                            onboardingComplete = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .glow(.accentColor)
+                    }
                 }
             }
+            .padding(28)
+            .frame(maxWidth: 760)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.25), .white.opacity(0.02)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: .accentColor.opacity(0.28), radius: 30, x: 0, y: 12)
+            .padding(24)
         }
-        .padding(24)
         .frame(minWidth: 720, minHeight: 520)
     }
 
@@ -153,5 +174,43 @@ struct OnboardingView: View {
                 .font(.title2.bold())
             Text("Open the Dashboard to confirm status, then use Sync with dry-run previews before applying changes.")
         }
+    }
+}
+
+/// A soft, slowly breathing multi-color glow used as an onboarding backdrop.
+private struct AmbientGlow: View {
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            glowCircle(.accentColor, size: 380, opacity: 0.38)
+                .offset(x: animate ? -150 : -80, y: animate ? -150 : -90)
+            glowCircle(.purple, size: 340, opacity: 0.30)
+                .offset(x: animate ? 160 : 100, y: animate ? 130 : 70)
+            glowCircle(.teal, size: 300, opacity: 0.26)
+                .offset(x: animate ? 70 : 20, y: animate ? -70 : 130)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+        .onAppear {
+            withAnimation(.easeInOut(duration: 7).repeatForever(autoreverses: true)) {
+                animate = true
+            }
+        }
+    }
+
+    private func glowCircle(_ color: Color, size: CGFloat, opacity: Double) -> some View {
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+            .blur(radius: 120)
+            .opacity(opacity)
+    }
+}
+
+private extension View {
+    /// Adds a soft colored halo around a view (used for prominent buttons).
+    func glow(_ color: Color, radius: CGFloat = 12) -> some View {
+        shadow(color: color.opacity(0.55), radius: radius, x: 0, y: 3)
     }
 }
