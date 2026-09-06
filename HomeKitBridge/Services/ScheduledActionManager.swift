@@ -5,6 +5,9 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
     var isEnabled: Bool
     var timeMinutes: Int
     var operationRawValue: String
+    /// The Apple Home this runs against, and with it the paired Home Assistant server.
+    /// Empty means "the home selected in the app", which is what upgrades start as.
+    var homeId: String
     var lastRunDay: String?
 
     init(
@@ -12,13 +15,29 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
         isEnabled: Bool = true,
         timeMinutes: Int = 8 * 60,
         operationRawValue: String = SyncOperation.devicePlacementHAToHome.rawValue,
+        homeId: String = "",
         lastRunDay: String? = nil
     ) {
         self.id = id
         self.isEnabled = isEnabled
         self.timeMinutes = timeMinutes
         self.operationRawValue = operationRawValue
+        self.homeId = homeId
         self.lastRunDay = lastRunDay
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, isEnabled, timeMinutes, operationRawValue, homeId, lastRunDay
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        timeMinutes = try container.decode(Int.self, forKey: .timeMinutes)
+        operationRawValue = try container.decode(String.self, forKey: .operationRawValue)
+        homeId = try container.decodeIfPresent(String.self, forKey: .homeId) ?? ""
+        lastRunDay = try container.decodeIfPresent(String.self, forKey: .lastRunDay)
     }
 
     var operation: SyncOperation? {
@@ -28,6 +47,17 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
 
 @MainActor
 final class ScheduledActionManager: ObservableObject {
+    /// Scheduled syncs are a Mac feature. iPhone and iPad suspend the app within
+    /// seconds of it leaving the screen, so a daily timer there would fire only if
+    /// the app happened to be open — which is worse than not offering it at all.
+    static var isSupported: Bool {
+        #if targetEnvironment(macCatalyst) || os(macOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     private enum DefaultsKey {
         static let schedules = "scheduledActions"
         static let legacyIsEnabled = "scheduledActionEnabled"
@@ -41,11 +71,13 @@ final class ScheduledActionManager: ObservableObject {
 
     private let syncEngine: SyncEngine
     private let logStore: LogStore
+    private let homeKitManager: HomeKitManager
     private var timer: Timer?
 
-    init(syncEngine: SyncEngine, logStore: LogStore) {
+    init(syncEngine: SyncEngine, logStore: LogStore, homeKitManager: HomeKitManager) {
         self.syncEngine = syncEngine
         self.logStore = logStore
+        self.homeKitManager = homeKitManager
         loadSchedules()
     }
 
@@ -75,6 +107,8 @@ final class ScheduledActionManager: ObservableObject {
     func refreshSchedule() {
         timer?.invalidate()
         timer = nil
+
+        guard Self.isSupported else { return }
 
         let enabledSchedules = schedules.filter(\.isEnabled)
         guard !enabledSchedules.isEmpty else { return }
@@ -126,11 +160,25 @@ final class ScheduledActionManager: ObservableObject {
             return
         }
 
+        let homeId = currentSchedule.homeId.isEmpty
+            ? (homeKitManager.selectedHome?.id ?? "")
+            : currentSchedule.homeId
+
+        guard let home = homeKitManager.home(byId: homeId) else {
+            logStore.add(category: .error, message: "Scheduled action failed", details: "Its Apple Home is no longer available.")
+            markSchedule(schedule.id, lastRunDay: todayKey)
+            return
+        }
+
         markSchedule(schedule.id, lastRunDay: todayKey)
-        logStore.add(category: .sync, message: "Scheduled action started", details: operation.displayTitle)
+        logStore.add(
+            category: .sync,
+            message: "Scheduled action started",
+            details: "\(operation.displayTitle) · \(home.name)"
+        )
 
         do {
-            let result = try await syncEngine.dryRun(operation)
+            let result = try await syncEngine.dryRun(operation, homeId: home.id)
             if result.changes.isEmpty {
                 logStore.add(category: .sync, message: "Scheduled action finished", details: result.summary)
             } else {

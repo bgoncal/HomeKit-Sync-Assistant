@@ -5,6 +5,8 @@ import SwiftUI
 /// Stable sample data every snapshot test renders from. Nothing here touches
 /// HomeKit or Home Assistant, so the screens render identically on every run.
 enum Fixtures {
+    static let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample-long-lived-token-value"
+
     static let kitchenLight = AccessorySummary(
         id: "11111111-1111-1111-1111-111111111111",
         name: "Kitchen Ceiling",
@@ -69,11 +71,52 @@ enum Fixtures {
         name: "Beach House"
     )
 
+    // MARK: - Servers
+
+    static let houseServer = HomeAssistantServer(
+        id: UUID(uuidString: "AAAAAAAA-0000-0000-0000-000000000001")!,
+        name: "House",
+        address: "http://homeassistant.local:8123",
+        token: token,
+        linkedHomeIds: [home.id]
+    )
+
+    static let beachServer = HomeAssistantServer(
+        id: UUID(uuidString: "AAAAAAAA-0000-0000-0000-000000000002")!,
+        name: "Beach House",
+        address: "http://beach.local:8123",
+        token: token,
+        linkedHomeIds: [secondHome.id]
+    )
+
+    /// A server that has been added but never reached.
+    static let unreachableServer = HomeAssistantServer(
+        id: UUID(uuidString: "AAAAAAAA-0000-0000-0000-000000000003")!,
+        name: "Studio",
+        address: "http://studio.local:8123",
+        token: token
+    )
+
+    static let connections: [ConnectionSummary] = [
+        ConnectionSummary(server: houseServer, state: .connected, linkedHomes: [home]),
+        ConnectionSummary(server: beachServer, state: .connected, linkedHomes: [secondHome])
+    ]
+
+    static let connectionsWithProblem: [ConnectionSummary] = [
+        ConnectionSummary(server: houseServer, state: .connected, linkedHomes: [home]),
+        ConnectionSummary(
+            server: unreachableServer,
+            state: .failed("Home Assistant rejected the access token: Invalid access token"),
+            linkedHomes: []
+        )
+    ]
+
     static let homeAssistantMatch = HomeAssistantMatch(
         entityId: "light.kitchen_ceiling",
         friendlyName: "Kitchen Ceiling Light",
         areaName: "Cozinha",
         deviceId: "5f2a1c9d",
+        serverName: "House",
         stateJSON: """
         {
           "entity_id" : "light.kitchen_ceiling",
@@ -93,6 +136,7 @@ enum Fixtures {
     static let placementPreview = DryRunResult(
         id: UUID(uuidString: "DDDDDDDD-0000-0000-0000-000000000001")!,
         operation: .devicePlacementHAToHome,
+        homeId: home.id,
         summary: SyncOperation.devicePlacementHAToHome.summary(changeCount: 2),
         changes: [
             SyncChange(
@@ -119,6 +163,7 @@ enum Fixtures {
     static let upToDatePreview = DryRunResult(
         id: UUID(uuidString: "DDDDDDDD-0000-0000-0000-000000000002")!,
         operation: .deviceNamesHomeToHA,
+        homeId: home.id,
         summary: SyncOperation.deviceNamesHomeToHA.summary(changeCount: 0),
         changes: []
     )
@@ -137,13 +182,15 @@ enum Fixtures {
             id: UUID(uuidString: "EEEEEEEE-0000-0000-0000-000000000001")!,
             isEnabled: true,
             timeMinutes: 7 * 60 + 30,
-            operationRawValue: SyncOperation.devicePlacementHAToHome.rawValue
+            operationRawValue: SyncOperation.devicePlacementHAToHome.rawValue,
+            homeId: home.id
         ),
         ScheduledAction(
             id: UUID(uuidString: "EEEEEEEE-0000-0000-0000-000000000002")!,
             isEnabled: false,
             timeMinutes: 22 * 60,
-            operationRawValue: SyncOperation.deviceNamesHomeToHA.rawValue
+            operationRawValue: SyncOperation.deviceNamesHomeToHA.rawValue,
+            homeId: home.id
         )
     ]
 
@@ -175,5 +222,4 @@ enum Fixtures {
         )
     ]
 
-    static let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample-long-lived-token-value"
 }

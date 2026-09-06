@@ -4,15 +4,13 @@ import XCTest
 
 @MainActor
 final class DashboardSnapshotTests: SnapshotTestCase {
-    func testEverythingConnected() {
+    func testTwoHomesAndTwoServers() {
         assertScreen(
             NavigationStack {
                 DashboardContent(
                     isHomeKitAuthorized: true,
-                    home: Fixtures.home,
-                    isHomeAssistantConnected: true,
-                    homeAssistantError: nil,
-                    homeAssistantAddress: "http://homeassistant.local:8123",
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    connections: Fixtures.connections,
                     isServerRunning: true,
                     serverPort: 8400
                 )
@@ -21,15 +19,14 @@ final class DashboardSnapshotTests: SnapshotTestCase {
         )
     }
 
-    func testHomeAssistantDisconnected() {
+    func testServerFailedAndHomeNotLinked() {
         assertScreen(
             NavigationStack {
                 DashboardContent(
                     isHomeKitAuthorized: true,
-                    home: Fixtures.home,
-                    isHomeAssistantConnected: false,
-                    homeAssistantError: "Home Assistant rejected the access token: Invalid access token",
-                    homeAssistantAddress: "http://homeassistant.local:8123",
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    connections: Fixtures.connectionsWithProblem,
+                    unlinkedHomes: [Fixtures.secondHome],
                     isServerRunning: false,
                     serverPort: 8400
                 )
@@ -43,10 +40,8 @@ final class DashboardSnapshotTests: SnapshotTestCase {
             NavigationStack {
                 DashboardContent(
                     isHomeKitAuthorized: false,
-                    home: nil,
-                    isHomeAssistantConnected: false,
-                    homeAssistantError: nil,
-                    homeAssistantAddress: "",
+                    homes: [],
+                    connections: [],
                     isServerRunning: false,
                     serverPort: 8400
                 )
@@ -83,7 +78,11 @@ final class DevicesSnapshotTests: SnapshotTestCase {
     func testDeviceMatchedInHomeAssistant() {
         assertScreen(
             NavigationStack {
-                DeviceDetailContent(accessory: Fixtures.kitchenLight, matchState: .matched(Fixtures.homeAssistantMatch))
+                DeviceDetailContent(
+                    accessory: Fixtures.kitchenLight,
+                    matchState: .matched(Fixtures.homeAssistantMatch),
+                    serverName: Fixtures.houseServer.name
+                )
             },
             named: "device-detail-matched"
         )
@@ -92,7 +91,11 @@ final class DevicesSnapshotTests: SnapshotTestCase {
     func testDeviceNotBridged() {
         assertScreen(
             NavigationStack {
-                DeviceDetailContent(accessory: Fixtures.nativeLock, matchState: .notBridged)
+                DeviceDetailContent(
+                    accessory: Fixtures.nativeLock,
+                    matchState: .notBridged,
+                    serverName: Fixtures.houseServer.name
+                )
             },
             named: "device-detail-not-bridged"
         )
@@ -103,7 +106,8 @@ final class DevicesSnapshotTests: SnapshotTestCase {
             NavigationStack {
                 DeviceDetailContent(
                     accessory: Fixtures.hallwaySensor,
-                    matchState: .failed("Not connected to Home Assistant")
+                    matchState: .failed("Not connected to House"),
+                    serverName: Fixtures.houseServer.name
                 )
             },
             named: "device-detail-failed"
@@ -135,9 +139,10 @@ final class SyncSnapshotTests: SnapshotTestCase {
         assertScreen(
             NavigationStack {
                 SyncContent(
-                    scheduleCount: 0,
                     homes: [Fixtures.home, Fixtures.secondHome],
                     selectedHomeId: Fixtures.home.id,
+                    serverName: Fixtures.houseServer.name,
+                    serverState: .connected,
                     operation: .constant(.devicePlacementHAToHome),
                     dryRunResult: nil,
                     progress: nil,
@@ -153,9 +158,10 @@ final class SyncSnapshotTests: SnapshotTestCase {
         assertScreen(
             NavigationStack {
                 SyncContent(
-                    scheduleCount: 2,
                     homes: [Fixtures.home],
                     selectedHomeId: Fixtures.home.id,
+                    serverName: Fixtures.houseServer.name,
+                    serverState: .connected,
                     operation: .constant(.devicePlacementHAToHome),
                     dryRunResult: Fixtures.placementPreview,
                     progress: nil,
@@ -171,9 +177,10 @@ final class SyncSnapshotTests: SnapshotTestCase {
         assertScreen(
             NavigationStack {
                 SyncContent(
-                    scheduleCount: 0,
                     homes: [Fixtures.home],
                     selectedHomeId: Fixtures.home.id,
+                    serverName: Fixtures.houseServer.name,
+                    serverState: .connected,
                     operation: .constant(.deviceNamesHomeToHA),
                     dryRunResult: Fixtures.upToDatePreview,
                     progress: nil,
@@ -189,9 +196,10 @@ final class SyncSnapshotTests: SnapshotTestCase {
         assertScreen(
             NavigationStack {
                 SyncContent(
-                    scheduleCount: 0,
                     homes: [Fixtures.home],
                     selectedHomeId: Fixtures.home.id,
+                    serverName: Fixtures.houseServer.name,
+                    serverState: .connected,
                     operation: .constant(.devicePlacementHAToHome),
                     dryRunResult: Fixtures.placementPreview,
                     progress: Fixtures.runningProgress,
@@ -207,17 +215,18 @@ final class SyncSnapshotTests: SnapshotTestCase {
         assertScreen(
             NavigationStack {
                 SyncContent(
-                    scheduleCount: 0,
-                    homes: [],
-                    selectedHomeId: nil,
+                    homes: [Fixtures.home],
+                    selectedHomeId: Fixtures.home.id,
+                    serverName: nil,
+                    serverState: nil,
                     operation: .constant(.roomsHAToHome),
                     dryRunResult: nil,
                     progress: nil,
-                    errorMessage: "No Apple Home is available yet. Grant HomeKit access, then pick a home.",
+                    errorMessage: "“Casa” is not linked to a Home Assistant server yet. Link it in Settings.",
                     isWorking: false
                 )
             },
-            named: "sync-error"
+            named: "sync-not-linked"
         )
     }
 }
@@ -233,7 +242,13 @@ final class ActionsSnapshotTests: SnapshotTestCase {
 
     func testScheduledActions() {
         assertScreen(
-            NavigationStack { ActionsContent(schedules: Fixtures.schedules) },
+            NavigationStack {
+                ActionsContent(
+                    schedules: Fixtures.schedules,
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    serverNames: [Fixtures.home.id: Fixtures.houseServer.name, Fixtures.secondHome.id: Fixtures.beachServer.name]
+                )
+            },
             named: "actions-scheduled"
         )
     }
@@ -260,35 +275,83 @@ final class EndpointsSnapshotTests: SnapshotTestCase {
 
 @MainActor
 final class SettingsSnapshotTests: SnapshotTestCase {
-    func testConfiguredSettings() {
+    func testTwoServersOnMac() {
         assertScreen(
             NavigationStack {
                 SettingsContent(
-                    haURL: .constant("http://homeassistant.local:8123"),
-                    haToken: .constant(Fixtures.token),
-                    connectionState: .succeeded,
+                    connections: Fixtures.connections,
+                    homes: [Fixtures.home, Fixtures.secondHome],
                     serverPort: .constant(8400),
                     autoStartServer: .constant(true),
-                    isServerRunning: true
+                    isServerRunning: true,
+                    scheduleCount: 2,
+                    supportsScheduledActions: true
                 )
             },
-            named: "settings-configured"
+            named: "settings-mac"
         )
     }
 
-    func testSettingsWithInvalidCredentials() {
+    /// iPhone and iPad have no scheduled syncs at all; the section is absent.
+    func testNoScheduledSyncsOnPhone() {
         assertScreen(
             NavigationStack {
                 SettingsContent(
-                    haURL: .constant("homeassistant.local:8123/lovelace/0"),
-                    haToken: .constant("Bearer abc"),
-                    connectionState: .failed("Could not connect. Check the address and token, then try again."),
+                    connections: Fixtures.connectionsWithProblem,
+                    homes: [Fixtures.home, Fixtures.secondHome],
                     serverPort: .constant(8400),
                     autoStartServer: .constant(false),
-                    isServerRunning: false
+                    isServerRunning: false,
+                    supportsScheduledActions: false
                 )
             },
-            named: "settings-invalid"
+            named: "settings-phone"
+        )
+    }
+
+    func testNoServersYet() {
+        assertScreen(
+            NavigationStack {
+                SettingsContent(
+                    connections: [],
+                    homes: [Fixtures.home],
+                    serverPort: .constant(8400),
+                    autoStartServer: .constant(true),
+                    isServerRunning: false,
+                    supportsScheduledActions: false
+                )
+            },
+            named: "settings-no-servers"
+        )
+    }
+}
+
+@MainActor
+final class ServerDetailSnapshotTests: SnapshotTestCase {
+    func testConfiguredServer() {
+        assertScreen(
+            NavigationStack {
+                ServerDetailContent(
+                    server: .constant(Fixtures.houseServer),
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    connectionState: .succeeded
+                )
+            },
+            named: "server-detail"
+        )
+    }
+
+    func testNewServerWithInvalidCredentials() {
+        assertScreen(
+            NavigationStack {
+                ServerDetailContent(
+                    server: .constant(HomeAssistantServer(name: "Studio", address: "studio.local:8123/lovelace/0", token: "Bearer abc")),
+                    isNew: true,
+                    homes: [Fixtures.home],
+                    connectionState: .failed("Could not connect. Check the address and token, then try again.")
+                )
+            },
+            named: "server-detail-new"
         )
     }
 }

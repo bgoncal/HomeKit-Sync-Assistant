@@ -2,10 +2,18 @@ import SwiftUI
 
 struct ActionsView: View {
     @EnvironmentObject private var scheduledActionManager: ScheduledActionManager
+    @EnvironmentObject private var homeKitManager: HomeKitManager
+    @EnvironmentObject private var connections: ConnectionStore
 
     var body: some View {
         ActionsContent(
             schedules: scheduledActionManager.schedules,
+            homes: homeKitManager.homes,
+            serverNames: Dictionary(
+                uniqueKeysWithValues: homeKitManager.homes.map { home in
+                    (home.id, connections.server(forHomeId: home.id)?.name)
+                }
+            ),
             onAdd: { scheduledActionManager.addSchedule() },
             onUpdate: { scheduledActionManager.updateSchedule($0) },
             onDelete: { schedule in
@@ -20,6 +28,9 @@ struct ActionsView: View {
 /// the way Settings shows a repeating rule.
 struct ActionsContent: View {
     let schedules: [ScheduledAction]
+    var homes: [HomeSummary] = []
+    /// Which Home Assistant serves each home, so a schedule can name both sides.
+    var serverNames: [String: String?] = [:]
     var onAdd: () -> Void = {}
     var onUpdate: (ScheduledAction) -> Void = { _ in }
     var onDelete: (ScheduledAction) -> Void = { _ in }
@@ -44,7 +55,7 @@ struct ActionsContent: View {
                 ContentUnavailableView {
                     Label("No Scheduled Actions", systemImage: "clock.badge.plus")
                 } description: {
-                    Text("Repeat a sync every day at a set time, without opening the app.")
+                    Text("Repeat a sync every day at a set time, while this Mac is awake and the app is open.")
                 } actions: {
                     Button("Add Action", action: onAdd)
                         .buttonStyle(.borderedProminent)
@@ -64,6 +75,19 @@ struct ActionsContent: View {
 
         return Section {
             Toggle("Enabled", isOn: binding.isEnabled)
+
+            Picker("Apple Home", selection: Binding(
+                get: { resolvedHomeId(for: schedule) },
+                set: { binding.wrappedValue.homeId = $0 }
+            )) {
+                if homes.isEmpty {
+                    Text("None").tag("")
+                }
+                ForEach(homes) { home in
+                    Text(home.name).tag(home.id)
+                }
+            }
+            .disabled(!schedule.isEnabled || homes.isEmpty)
 
             DatePicker(
                 "Time",
@@ -94,6 +118,18 @@ struct ActionsContent: View {
                 }
             }
 
+            LabeledContent(SyncPlatform.homeAssistant.name) {
+                if let serverName = serverName(for: schedule) {
+                    BridgePill(
+                        title: serverName,
+                        systemImage: SyncPlatform.homeAssistant.symbolName,
+                        tint: SyncPlatform.homeAssistant.tint
+                    )
+                } else {
+                    BridgePill(title: "Not Linked", systemImage: "link.badge.plus", tint: .orange)
+                }
+            }
+
             Button("Delete Action", role: .destructive) {
                 onDelete(schedule)
             }
@@ -104,14 +140,37 @@ struct ActionsContent: View {
         }
     }
 
+    private func resolvedHomeId(for schedule: ScheduledAction) -> String {
+        if !schedule.homeId.isEmpty, homes.contains(where: { $0.id == schedule.homeId }) {
+            return schedule.homeId
+        }
+        return homes.first?.id ?? ""
+    }
+
+    private func homeName(for schedule: ScheduledAction) -> String? {
+        homes.first { $0.id == resolvedHomeId(for: schedule) }?.name
+    }
+
+    private func serverName(for schedule: ScheduledAction) -> String? {
+        serverNames[resolvedHomeId(for: schedule)] ?? nil
+    }
+
     private func summary(for schedule: ScheduledAction) -> String {
         let action = schedule.operation?.displayTitle ?? "Pick a direction before this action can run."
-        let destination = schedule.operation?.direction.destination.name ?? "the other side"
+        let destination: String
+        switch schedule.operation?.direction.destination {
+        case .appleHome: destination = homeName(for: schedule) ?? SyncPlatform.appleHome.name
+        case .homeAssistant: destination = serverName(for: schedule) ?? SyncPlatform.homeAssistant.name
+        case nil: destination = "the other side"
+        }
         let time = date(forMinutesAfterMidnight: schedule.timeMinutes)
             .formatted(date: .omitted, time: .shortened)
 
         guard schedule.isEnabled else {
             return "\(action). Paused — it was set to run daily at \(time)."
+        }
+        if serverName(for: schedule) == nil {
+            return "\(action). It cannot run until its Apple Home is linked to a Home Assistant server in Settings."
         }
         return "\(action). Every day at \(time), changes are applied in \(destination) while the app is open."
     }

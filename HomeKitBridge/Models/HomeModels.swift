@@ -136,6 +136,8 @@ struct HomeAssistantMatch: Equatable {
     let friendlyName: String?
     let areaName: String?
     let deviceId: String?
+    /// Which Home Assistant server answered, so a device page can name it.
+    let serverName: String
     /// Pretty-printed registry payloads, rendered up-front so views never handle
     /// raw `[String: Any]` dictionaries.
     let stateJSON: String
@@ -148,6 +150,7 @@ struct HomeAssistantMatch: Equatable {
         friendlyName: String? = nil,
         areaName: String? = nil,
         deviceId: String? = nil,
+        serverName: String = "Home Assistant",
         stateJSON: String = "{}",
         entityJSON: String = "{}",
         deviceJSON: String? = nil,
@@ -157,6 +160,7 @@ struct HomeAssistantMatch: Equatable {
         self.friendlyName = friendlyName
         self.areaName = areaName
         self.deviceId = deviceId
+        self.serverName = serverName
         self.stateJSON = stateJSON
         self.entityJSON = entityJSON
         self.deviceJSON = deviceJSON

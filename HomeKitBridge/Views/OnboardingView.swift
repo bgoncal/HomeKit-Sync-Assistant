@@ -58,31 +58,38 @@ enum ConnectionTestState: Equatable {
 
 struct OnboardingView: View {
     @EnvironmentObject private var homeKitManager: HomeKitManager
+    @EnvironmentObject private var connections: ConnectionStore
     @EnvironmentObject private var syncEngine: SyncEngine
 
-    @AppStorage("haURL") private var haURL = ""
-    @AppStorage("haToken") private var haToken = ""
     @AppStorage("onboardingComplete") private var onboardingComplete = false
 
     @State private var step: OnboardingStep = .welcome
+    @State private var draft = HomeAssistantServer()
     @State private var connectionState: ConnectionTestState = .idle
+    @State private var didLoadExistingServer = false
 
     var body: some View {
         OnboardingContent(
             step: step,
             homeKitAuthorized: homeKitManager.isAuthorized,
             homeNames: homeKitManager.homes.map(\.name),
-            haURL: $haURL,
-            haToken: $haToken,
+            server: $draft,
             connectionState: connectionState,
             onRequestHomeKitAccess: { homeKitManager.requestAccess() },
             onTestConnection: testConnection,
             onBack: { move(by: -1) },
             onNext: { move(by: 1) },
-            onFinish: { onboardingComplete = true }
+            onFinish: finish
         )
-        .onChange(of: haURL) { _, _ in connectionState = .idle }
-        .onChange(of: haToken) { _, _ in connectionState = .idle }
+        .onAppear {
+            // Setup can be reopened later, so start from the first server if there is one.
+            guard !didLoadExistingServer else { return }
+            didLoadExistingServer = true
+            if let existing = connections.servers.first {
+                draft = existing
+            }
+        }
+        .onChange(of: draft) { _, _ in connectionState = .idle }
     }
 
     private func move(by offset: Int) {
@@ -90,16 +97,37 @@ struct OnboardingView: View {
         guard let index = steps.firstIndex(of: step) else { return }
         let next = index + offset
         guard steps.indices.contains(next) else { return }
+
+        if step == .homeAssistant, offset > 0 {
+            saveServer()
+        }
         withAnimation { step = steps[next] }
     }
 
+    private func finish() {
+        saveServer()
+        connections.linkAllHomes(homeKitManager.homes.map(\.id), toServerId: draft.id)
+        onboardingComplete = true
+    }
+
+    /// Writes the draft into the store, adding it the first time.
+    private func saveServer() {
+        if connections.server(id: draft.id) == nil {
+            draft = connections.add(draft)
+        } else {
+            connections.update(draft)
+        }
+    }
+
     private func testConnection() {
+        saveServer()
         connectionState = .testing
         Task {
-            let ok = await syncEngine.testHAConnection()
+            let ok = await syncEngine.testConnection(serverId: draft.id)
             connectionState = ok
                 ? .succeeded
-                : .failed("Could not connect. Check the address and token, then try again.")
+                : .failed(connections.state(forServerId: draft.id).message
+                          ?? "Could not connect. Check the address and token, then try again.")
         }
     }
 }
@@ -112,8 +140,9 @@ struct OnboardingContent: View {
     let step: OnboardingStep
     let homeKitAuthorized: Bool
     let homeNames: [String]
-    @Binding var haURL: String
-    @Binding var haToken: String
+    /// The first Home Assistant server, edited in place. More can be added later
+    /// in Settings.
+    @Binding var server: HomeAssistantServer
     let connectionState: ConnectionTestState
     let onRequestHomeKitAccess: () -> Void
     let onTestConnection: () -> Void
@@ -243,7 +272,7 @@ struct OnboardingContent: View {
 
     private var canContinue: Bool {
         guard step == .homeAssistant else { return true }
-        return HAConfiguration.urlProblem(haURL) == nil && HAConfiguration.tokenProblem(haToken) == nil
+        return server.isConfigured
     }
 
     // MARK: Steps
@@ -375,28 +404,36 @@ struct OnboardingContent: View {
             }
 
             Section {
-                TextField("homeassistant.local:8123", text: $haURL)
+                TextField("Home Assistant", text: $server.name)
+            } header: {
+                Text("Name")
+            } footer: {
+                Text("What you call this server. You can add more servers later, one per Home Assistant you run.")
+            }
+
+            Section {
+                TextField("homeassistant.local:8123", text: $server.address)
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
                     .keyboardType(.URL)
             } header: {
                 Text("Address")
             } footer: {
-                if haURL.isEmpty {
+                if server.address.isEmpty {
                     Text("The same address you type in a browser to open Home Assistant.")
-                } else if let problem = HAConfiguration.urlProblem(haURL) {
+                } else if let problem = HAConfiguration.urlProblem(server.address) {
                     Text(problem).foregroundStyle(.orange)
-                } else if let url = HAConfiguration.webSocketURL(for: haURL) {
+                } else if let url = HAConfiguration.webSocketURL(for: server.address) {
                     Text("Will connect to \(url.absoluteString)")
                 }
             }
 
             Section {
-                SecureField("Paste the token", text: $haToken)
+                SecureField("Paste the token", text: $server.token)
             } header: {
                 Text("Long-Lived Access Token")
             } footer: {
-                if !haToken.isEmpty, let problem = HAConfiguration.tokenProblem(haToken) {
+                if !server.token.isEmpty, let problem = HAConfiguration.tokenProblem(server.token) {
                     Text(problem).foregroundStyle(.orange)
                 } else {
                     Text("In Home Assistant: your profile → Security → Long-lived access tokens → Create token. The token is stored on this device.")
@@ -436,7 +473,7 @@ struct OnboardingContent: View {
         case .idle, .testing:
             return nil
         case .succeeded:
-            return ("Connected", "Home Assistant answered and accepted the token.", "checkmark.circle.fill", .green)
+            return ("Connected", "\(server.name) answered and accepted the token.", "checkmark.circle.fill", .green)
         case .failed(let message):
             return ("Not Connected", message, "exclamationmark.circle.fill", .red)
         }
@@ -454,12 +491,18 @@ struct OnboardingContent: View {
 
             Section {
                 LabeledContent(SyncPlatform.appleHome.name, value: homeKitAuthorized ? "Connected" : "Not connected")
-                LabeledContent(SyncPlatform.homeAssistant.name, value: connectionState == .succeeded ? "Connected" : "Saved, not tested")
-                LabeledContent("Address", value: HAConfiguration.normalizedURL(haURL).isEmpty ? "Not set" : HAConfiguration.normalizedURL(haURL))
+                LabeledContent(server.name.isEmpty ? SyncPlatform.homeAssistant.name : server.name,
+                               value: connectionState == .succeeded ? "Connected" : "Saved, not tested")
+                LabeledContent("Address", value: server.normalizedAddress.isEmpty ? "Not set" : server.normalizedAddress)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if !homeNames.isEmpty {
+                    LabeledContent("Homes Linked", value: homeNames.formatted(.list(type: .and)))
+                }
             } header: {
                 Text("Setup")
+            } footer: {
+                Text("Every home found so far is paired with \(server.name.isEmpty ? "this server" : server.name). Change that, or add another server, in Settings.")
             }
 
             Section {
@@ -477,8 +520,8 @@ struct OnboardingContent: View {
                 )
                 BridgeFeatureRow(
                     systemImage: "gearshape",
-                    title: "Setup Lives in Settings",
-                    message: "Change the address or token, or run this guide again, at any time.",
+                    title: "More Homes, More Servers",
+                    message: "Settings holds every Home Assistant you add, and which Apple Home each one is paired with.",
                     tint: .secondary
                 )
             }

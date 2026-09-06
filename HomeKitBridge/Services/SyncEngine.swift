@@ -202,12 +202,15 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
 struct DryRunResult: Identifiable, Equatable {
     let id: UUID
     let operation: SyncOperation
+    /// The Apple Home this plan was made for, and with it the Home Assistant server.
+    let homeId: String
     let summary: String
     let changes: [SyncChange]
 
-    init(id: UUID = UUID(), operation: SyncOperation, summary: String, changes: [SyncChange]) {
+    init(id: UUID = UUID(), operation: SyncOperation, homeId: String = "", summary: String, changes: [SyncChange]) {
         self.id = id
         self.operation = operation
+        self.homeId = homeId
         self.summary = summary
         self.changes = changes
     }
@@ -278,25 +281,29 @@ final class SyncEngine: ObservableObject {
 
     private let homeKitManager: HomeKitManager
     private let logStore: LogStore
-    private let wsClient: HAWebSocketClient
+    private let connections: ConnectionStore
 
-    init(homeKitManager: HomeKitManager, logStore: LogStore, wsClient: HAWebSocketClient) {
+    init(homeKitManager: HomeKitManager, logStore: LogStore, connections: ConnectionStore) {
         self.homeKitManager = homeKitManager
         self.logStore = logStore
-        self.wsClient = wsClient
+        self.connections = connections
     }
 
-    func testHAConnection() async -> Bool {
-        if wsClient.isConnected {
-            return true
-        }
+    /// One Apple Home, the Home Assistant server it is paired with, and the open
+    /// connection to it. Everything a sync needs, resolved once up front.
+    private struct SyncContext {
+        let home: HomeSummary
+        let server: HomeAssistantServer
+        let client: HAWebSocketClient
+    }
 
-        let ok = await wsClient.connect()
+    func testConnection(serverId: UUID) async -> Bool {
+        let ok = await connections.connect(serverId: serverId)
         if !ok {
             logStore.add(
                 category: .error,
-                message: "Could not reach Home Assistant",
-                details: wsClient.connectionError ?? "Unknown error"
+                message: "Could not reach \(connections.server(id: serverId)?.name ?? "Home Assistant")",
+                details: connections.state(forServerId: serverId).message ?? "Unknown error"
             )
         }
         return ok
@@ -304,7 +311,7 @@ final class SyncEngine: ObservableObject {
 
     // MARK: - Dry Run
 
-    func dryRun(_ operation: SyncOperation) async throws -> DryRunResult {
+    func dryRun(_ operation: SyncOperation, homeId: String) async throws -> DryRunResult {
         isBusy = true
         progress = SyncProgress(title: "Preparing preview", detail: operation.displayTitle)
         defer {
@@ -312,16 +319,16 @@ final class SyncEngine: ObservableObject {
             progress = nil
         }
 
-        try await ensureConnected()
+        let context = try await context(forHomeId: homeId)
 
         progress = SyncProgress(title: "Comparing \(operation.direction.label)", detail: operation.displayTitle)
         switch operation {
-        case .roomsHAToHome: return try await dryRunRoomsHAToHome()
-        case .roomsHomeToHA: return try await dryRunRoomsHomeToHA()
-        case .devicePlacementHAToHome: return try await dryRunDevicePlacementHAToHome()
-        case .devicePlacementHomeToHA: return try await dryRunDevicePlacementHomeToHA()
-        case .deviceNamesHAToHome: return try await dryRunDeviceNamesHAToHome()
-        case .deviceNamesHomeToHA: return try await dryRunDeviceNamesHomeToHA()
+        case .roomsHAToHome: return try await dryRunRoomsHAToHome(context)
+        case .roomsHomeToHA: return try await dryRunRoomsHomeToHA(context)
+        case .devicePlacementHAToHome: return try await dryRunDevicePlacementHAToHome(context)
+        case .devicePlacementHomeToHA: return try await dryRunDevicePlacementHomeToHA(context)
+        case .deviceNamesHAToHome: return try await dryRunDeviceNamesHAToHome(context)
+        case .deviceNamesHomeToHA: return try await dryRunDeviceNamesHomeToHA(context)
         }
     }
 
@@ -335,12 +342,12 @@ final class SyncEngine: ObservableObject {
             progress = nil
         }
 
-        try await ensureConnected()
+        let context = try await context(forHomeId: result.homeId)
 
         logStore.add(
             category: .sync,
             message: "Applying: \(result.operation.displayTitle)",
-            details: "\(result.changes.count) change\(result.changes.count == 1 ? "" : "s") in \(result.operation.direction.destination.name)"
+            details: "\(result.changes.count) change\(result.changes.count == 1 ? "" : "s") in \(destinationName(for: result.operation, context: context))"
         )
 
         var successCount = 0
@@ -355,7 +362,7 @@ final class SyncEngine: ObservableObject {
             )
 
             do {
-                try await executeChange(change, operation: result.operation)
+                try await executeChange(change, operation: result.operation, context: context)
                 successCount += 1
                 progress = SyncProgress(
                     title: "Applied change \(index + 1) of \(result.changes.count)",
@@ -373,20 +380,18 @@ final class SyncEngine: ObservableObject {
         logStore.add(
             category: .sync,
             message: "Finished: \(result.operation.displayTitle)",
-            details: "\(successCount) applied, \(failCount) failed in \(result.operation.direction.destination.name)"
+            details: "\(successCount) applied, \(failCount) failed in \(destinationName(for: result.operation, context: context))"
         )
     }
 
-    private func ensureConnected() async throws {
-        guard !wsClient.isConnected else { return }
-        progress = SyncProgress(title: "Connecting to Home Assistant", detail: "Opening the WebSocket connection")
-        let ok = await wsClient.connect()
-        if !ok {
-            throw BridgeError.badRequest(wsClient.connectionError ?? "Could not connect to Home Assistant")
+    private func destinationName(for operation: SyncOperation, context: SyncContext) -> String {
+        switch operation.direction.destination {
+        case .appleHome: return context.home.name
+        case .homeAssistant: return context.server.name
         }
     }
 
-    private func executeChange(_ change: SyncChange, operation: SyncOperation) async throws {
+    private func executeChange(_ change: SyncChange, operation: SyncOperation, context: SyncContext) async throws {
         switch operation {
         case .roomsHAToHome:
             switch change.action {
@@ -401,7 +406,7 @@ final class SyncEngine: ObservableObject {
 
         case .roomsHomeToHA:
             if change.action == .createRoom, let name = change.newName {
-                _ = try await wsClient.createArea(name: name)
+                _ = try await context.client.createArea(name: name)
             }
 
         case .devicePlacementHAToHome:
@@ -410,12 +415,12 @@ final class SyncEngine: ObservableObject {
                 guard let homeId = change.homeId, let name = change.newName else { return }
                 _ = try await homeKitManager.createRoom(homeId: homeId, name: name)
             case .moveAccessory:
-                guard let accessoryId = change.accessoryId, let home = homeKitManager.selectedHome else { return }
+                guard let accessoryId = change.accessoryId else { return }
+                let home = homeKitManager.home(byId: context.home.id) ?? context.home
                 let resolvedRoomId: String?
                 if let existing = change.roomId {
                     resolvedRoomId = existing
-                } else if let roomName = change.targetRoomName,
-                          let room = home.room(named: roomName) {
+                } else if let roomName = change.targetRoomName, let room = home.room(named: roomName) {
                     resolvedRoomId = room.id
                 } else {
                     resolvedRoomId = nil
@@ -428,7 +433,7 @@ final class SyncEngine: ObservableObject {
         case .devicePlacementHomeToHA:
             if change.action == .moveAccessory {
                 guard let entityId = change.accessoryId, let targetArea = change.targetRoomName else { return }
-                let areas = try await wsClient.fetchAreas()
+                let areas = try await context.client.fetchAreas()
                 var areaId: String?
                 for area in areas {
                     if let name = area["name"] as? String, name.caseInsensitiveCompare(targetArea) == .orderedSame {
@@ -437,11 +442,11 @@ final class SyncEngine: ObservableObject {
                     }
                 }
                 if areaId == nil {
-                    let result = try await wsClient.createArea(name: targetArea)
+                    let result = try await context.client.createArea(name: targetArea)
                     areaId = (result["result"] as? [String: Any])?["area_id"] as? String
                 }
                 guard let finalAreaId = areaId else { return }
-                _ = try await wsClient.updateEntity(entityId: entityId, updates: ["area_id": finalAreaId])
+                _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": finalAreaId])
             }
 
         case .deviceNamesHAToHome:
@@ -453,56 +458,50 @@ final class SyncEngine: ObservableObject {
         case .deviceNamesHomeToHA:
             if change.action == .renameAccessory {
                 guard let entityId = change.accessoryId, let newName = change.newName else { return }
-                _ = try await wsClient.updateEntity(entityId: entityId, updates: ["name": newName])
+                _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": newName])
             }
         }
     }
 
     // MARK: - Dry Run Implementations
 
-    private func dryRunRoomsHAToHome() async throws -> DryRunResult {
-        let home = try selectedHome()
-        progress = SyncProgress(title: "Reading Home Assistant areas")
-        let areas = try await wsClient.fetchAreas()
+    private func dryRunRoomsHAToHome(_ context: SyncContext) async throws -> DryRunResult {
+        progress = SyncProgress(title: "Reading areas from \(context.server.name)")
+        let areas = try await context.client.fetchAreas()
         var changes: [SyncChange] = []
 
         for (index, area) in areas.enumerated() {
-            progress = SyncProgress(title: "Comparing areas with Apple Home rooms", detail: "Area \(index + 1) of \(areas.count)", completed: index, total: areas.count)
+            progress = SyncProgress(title: "Comparing areas with rooms", detail: "Area \(index + 1) of \(areas.count)", completed: index, total: areas.count)
             guard let name = area["name"] as? String else { continue }
-            if home.room(named: name) == nil {
+            if context.home.room(named: name) == nil {
                 changes.append(SyncChange(
                     action: .createRoom,
-                    title: "Create “\(name)” in Apple Home",
-                    details: "Home Assistant has the area “\(name)”, Apple Home has no room with that name.",
+                    title: "Create “\(name)” in \(context.home.name)",
+                    details: "\(context.server.name) has the area “\(name)”, \(context.home.name) has no room with that name.",
                     newName: name,
-                    homeId: home.id,
+                    homeId: context.home.id,
                     targetRoomName: name
                 ))
             }
         }
 
-        return DryRunResult(
-            operation: .roomsHAToHome,
-            summary: SyncOperation.roomsHAToHome.summary(changeCount: changes.count),
-            changes: changes
-        )
+        return result(.roomsHAToHome, context: context, changes: changes)
     }
 
-    private func dryRunRoomsHomeToHA() async throws -> DryRunResult {
-        let home = try selectedHome()
-        progress = SyncProgress(title: "Reading Home Assistant areas")
-        let areas = try await wsClient.fetchAreas()
+    private func dryRunRoomsHomeToHA(_ context: SyncContext) async throws -> DryRunResult {
+        progress = SyncProgress(title: "Reading areas from \(context.server.name)")
+        let areas = try await context.client.fetchAreas()
         let areaNames = Set(areas.compactMap { ($0["name"] as? String)?.lowercased() })
 
-        let rooms = home.rooms.filter { !$0.isDefaultRoom }
+        let rooms = context.home.rooms.filter { !$0.isDefaultRoom }
         var changes: [SyncChange] = []
         for (index, room) in rooms.enumerated() {
-            progress = SyncProgress(title: "Comparing Apple Home rooms with areas", detail: "Room \(index + 1) of \(rooms.count)", completed: index, total: rooms.count)
+            progress = SyncProgress(title: "Comparing rooms with areas", detail: "Room \(index + 1) of \(rooms.count)", completed: index, total: rooms.count)
             if !areaNames.contains(room.name.lowercased()) {
                 changes.append(SyncChange(
                     action: .createRoom,
-                    title: "Create “\(room.name)” in Home Assistant",
-                    details: "Apple Home has the room “\(room.name)”, Home Assistant has no area with that name.",
+                    title: "Create “\(room.name)” in \(context.server.name)",
+                    details: "\(context.home.name) has the room “\(room.name)”, \(context.server.name) has no area with that name.",
                     roomId: room.id,
                     newName: room.name,
                     targetRoomName: room.name
@@ -510,65 +509,55 @@ final class SyncEngine: ObservableObject {
             }
         }
 
-        return DryRunResult(
-            operation: .roomsHomeToHA,
-            summary: SyncOperation.roomsHomeToHA.summary(changeCount: changes.count),
-            changes: changes
-        )
+        return result(.roomsHomeToHA, context: context, changes: changes)
     }
 
-    private func dryRunDevicePlacementHAToHome() async throws -> DryRunResult {
-        let home = try selectedHome()
-        let entityAreaMap = try await buildEntityAreaMap()
+    private func dryRunDevicePlacementHAToHome(_ context: SyncContext) async throws -> DryRunResult {
+        let entityAreaMap = try await buildEntityAreaMap(context)
         var changes: [SyncChange] = []
         var plannedRoomCreates = Set<String>()
 
-        for (index, accessory) in home.accessories.enumerated() {
-            progress = SyncProgress(title: "Matching Apple Home devices", detail: "Device \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
+        for (index, accessory) in context.home.accessories.enumerated() {
+            progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
             guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id),
                   let targetAreaName = entityAreaMap[serial] else { continue }
 
             let currentRoomName = accessory.roomName
             if currentRoomName.caseInsensitiveCompare(targetAreaName) == .orderedSame { continue }
 
-            let existingRoom = home.room(named: targetAreaName)
+            let existingRoom = context.home.room(named: targetAreaName)
             if existingRoom == nil, !plannedRoomCreates.contains(targetAreaName.lowercased()) {
                 plannedRoomCreates.insert(targetAreaName.lowercased())
                 changes.append(SyncChange(
                     action: .createRoom,
-                    title: "Create “\(targetAreaName)” in Apple Home",
+                    title: "Create “\(targetAreaName)” in \(context.home.name)",
                     details: "Needed before devices can be moved into it.",
                     newName: targetAreaName,
-                    homeId: home.id,
+                    homeId: context.home.id,
                     targetRoomName: targetAreaName
                 ))
             }
 
             changes.append(SyncChange(
                 action: .moveAccessory,
-                title: "Move “\(accessory.name)” in Apple Home",
-                details: "Apple Home room \(currentRoomName.isEmpty ? RoomSummary.defaultRoomName : currentRoomName) → \(targetAreaName), to match its Home Assistant area.",
+                title: "Move “\(accessory.name)” in \(context.home.name)",
+                details: "Room \(currentRoomName.isEmpty ? RoomSummary.defaultRoomName : currentRoomName) → \(targetAreaName), to match its area in \(context.server.name).",
                 accessoryId: accessory.id,
                 roomId: existingRoom?.id,
                 targetRoomName: targetAreaName,
-                extraData: ["Home Assistant entity": serial]
+                extraData: ["Entity": serial]
             ))
         }
 
-        return DryRunResult(
-            operation: .devicePlacementHAToHome,
-            summary: SyncOperation.devicePlacementHAToHome.summary(changeCount: changes.count),
-            changes: changes
-        )
+        return result(.devicePlacementHAToHome, context: context, changes: changes)
     }
 
-    private func dryRunDevicePlacementHomeToHA() async throws -> DryRunResult {
-        let home = try selectedHome()
-        let entityAreaMap = try await buildEntityAreaMap()
+    private func dryRunDevicePlacementHomeToHA(_ context: SyncContext) async throws -> DryRunResult {
+        let entityAreaMap = try await buildEntityAreaMap(context)
         var changes: [SyncChange] = []
 
-        for (index, accessory) in home.accessories.enumerated() {
-            progress = SyncProgress(title: "Matching Apple Home devices", detail: "Device \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
+        for (index, accessory) in context.home.accessories.enumerated() {
+            progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
             guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id) else { continue }
 
             let roomName = accessory.roomName
@@ -579,88 +568,74 @@ final class SyncEngine: ObservableObject {
 
             changes.append(SyncChange(
                 action: .moveAccessory,
-                title: "Move “\(accessory.name)” in Home Assistant",
-                details: "Home Assistant area \(areaName.isEmpty ? "None" : areaName) → \(roomName), to match its Apple Home room.",
+                title: "Move “\(accessory.name)” in \(context.server.name)",
+                details: "Area \(areaName.isEmpty ? "None" : areaName) → \(roomName), to match its room in \(context.home.name).",
                 accessoryId: serial,
                 targetRoomName: roomName,
-                extraData: ["Home Assistant entity": serial]
+                extraData: ["Entity": serial]
             ))
         }
 
-        return DryRunResult(
-            operation: .devicePlacementHomeToHA,
-            summary: SyncOperation.devicePlacementHomeToHA.summary(changeCount: changes.count),
-            changes: changes
-        )
+        return result(.devicePlacementHomeToHA, context: context, changes: changes)
     }
 
-    private func dryRunDeviceNamesHAToHome() async throws -> DryRunResult {
-        let home = try selectedHome()
-        let nameMap = try await buildEntityNameMap()
+    private func dryRunDeviceNamesHAToHome(_ context: SyncContext) async throws -> DryRunResult {
+        let nameMap = try await buildEntityNameMap(context)
         var changes: [SyncChange] = []
 
-        for (index, accessory) in home.accessories.enumerated() {
-            progress = SyncProgress(title: "Matching Apple Home devices", detail: "Device \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
+        for (index, accessory) in context.home.accessories.enumerated() {
+            progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
             guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id),
                   let targetName = nameMap[serial] else { continue }
             if accessory.name == targetName { continue }
 
             changes.append(SyncChange(
                 action: .renameAccessory,
-                title: "Rename “\(accessory.name)” in Apple Home",
-                details: "Apple Home name \(accessory.name) → \(targetName), taken from Home Assistant.",
+                title: "Rename “\(accessory.name)” in \(context.home.name)",
+                details: "Name \(accessory.name) → \(targetName), taken from \(context.server.name).",
                 accessoryId: accessory.id,
                 newName: targetName,
-                extraData: ["Home Assistant entity": serial]
+                extraData: ["Entity": serial]
             ))
         }
 
-        return DryRunResult(
-            operation: .deviceNamesHAToHome,
-            summary: SyncOperation.deviceNamesHAToHome.summary(changeCount: changes.count),
-            changes: changes
-        )
+        return result(.deviceNamesHAToHome, context: context, changes: changes)
     }
 
-    private func dryRunDeviceNamesHomeToHA() async throws -> DryRunResult {
-        let home = try selectedHome()
-        let nameMap = try await buildEntityNameMap()
+    private func dryRunDeviceNamesHomeToHA(_ context: SyncContext) async throws -> DryRunResult {
+        let nameMap = try await buildEntityNameMap(context)
         var changes: [SyncChange] = []
 
-        for (index, accessory) in home.accessories.enumerated() {
-            progress = SyncProgress(title: "Matching Apple Home devices", detail: "Device \(index + 1) of \(home.accessories.count): \(accessory.name)", completed: index, total: home.accessories.count)
+        for (index, accessory) in context.home.accessories.enumerated() {
+            progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
             guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id),
                   let haName = nameMap[serial] else { continue }
             if accessory.name == haName { continue }
 
             changes.append(SyncChange(
                 action: .renameAccessory,
-                title: "Rename “\(haName)” in Home Assistant",
-                details: "Home Assistant name \(haName) → \(accessory.name), taken from Apple Home.",
+                title: "Rename “\(haName)” in \(context.server.name)",
+                details: "Name \(haName) → \(accessory.name), taken from \(context.home.name).",
                 accessoryId: serial,
                 newName: accessory.name,
-                extraData: ["Home Assistant entity": serial]
+                extraData: ["Entity": serial]
             ))
         }
 
-        return DryRunResult(
-            operation: .deviceNamesHomeToHA,
-            summary: SyncOperation.deviceNamesHomeToHA.summary(changeCount: changes.count),
-            changes: changes
-        )
+        return result(.deviceNamesHomeToHA, context: context, changes: changes)
     }
 
     // MARK: - Home Assistant lookup
 
-    /// Looks up everything Home Assistant knows about one bridged accessory,
-    /// matching on the HomeKit serial number (which equals the HA entity ID).
-    func homeAssistantMatch(forEntityId entityId: String) async throws -> HomeAssistantMatch? {
-        try await ensureConnected()
+    /// Looks up everything the paired server knows about one bridged accessory,
+    /// matching on the HomeKit serial number (which equals the entity ID).
+    func homeAssistantMatch(forEntityId entityId: String, homeId: String) async throws -> HomeAssistantMatch? {
+        let context = try await context(forHomeId: homeId)
 
-        async let statesTask = wsClient.getStates()
-        async let entitiesTask = wsClient.fetchEntityRegistry()
-        async let devicesTask = wsClient.fetchDeviceRegistry()
-        async let areasTask = wsClient.fetchAreas()
+        async let statesTask = context.client.getStates()
+        async let entitiesTask = context.client.fetchEntityRegistry()
+        async let devicesTask = context.client.fetchDeviceRegistry()
+        async let areasTask = context.client.fetchAreas()
 
         let states = try await statesTask
         let entities = try await entitiesTask
@@ -680,6 +655,7 @@ final class SyncEngine: ObservableObject {
             friendlyName: (state["attributes"] as? [String: Any])?["friendly_name"] as? String,
             areaName: area?["name"] as? String,
             deviceId: deviceId,
+            serverName: context.server.name,
             stateJSON: Self.prettyJSON(state),
             entityJSON: Self.prettyJSON(entity ?? [:]),
             deviceJSON: device.map(Self.prettyJSON),
@@ -698,20 +674,50 @@ final class SyncEngine: ObservableObject {
 
     // MARK: - Helpers
 
-    private func selectedHome() throws -> HomeSummary {
-        guard let home = homeKitManager.selectedHome else {
-            throw BridgeError.notFound("No Apple Home is available yet. Grant HomeKit access, then pick a home.")
-        }
-        return home
+    private func result(_ operation: SyncOperation, context: SyncContext, changes: [SyncChange]) -> DryRunResult {
+        DryRunResult(
+            operation: operation,
+            homeId: context.home.id,
+            summary: operation.summary(changeCount: changes.count),
+            changes: changes
+        )
     }
 
-    private func buildEntityAreaMap() async throws -> [String: String] {
-        progress = SyncProgress(title: "Reading Home Assistant areas")
-        let areas = try await wsClient.fetchAreas()
-        progress = SyncProgress(title: "Reading Home Assistant entities")
-        let entities = try await wsClient.fetchEntityRegistry()
-        progress = SyncProgress(title: "Reading Home Assistant devices")
-        let devices = try await wsClient.fetchDeviceRegistry()
+    /// Resolves the home, its server, and an open connection — or explains which of
+    /// the three is missing.
+    private func context(forHomeId homeId: String) async throws -> SyncContext {
+        guard let home = homeKitManager.home(byId: homeId) ?? homeKitManager.selectedHome else {
+            throw BridgeError.notFound("No Apple Home is available yet. Allow HomeKit access, then pick a home.")
+        }
+
+        guard let server = connections.server(forHomeId: home.id) else {
+            throw BridgeError.badRequest("“\(home.name)” is not linked to a Home Assistant server yet. Link it in Settings.")
+        }
+
+        guard let client = connections.client(forServerId: server.id) else {
+            throw BridgeError.notFound("“\(server.name)” is no longer set up.")
+        }
+
+        if !client.isConnected {
+            progress = SyncProgress(title: "Connecting to \(server.name)", detail: server.normalizedAddress)
+            let ok = await connections.connect(serverId: server.id)
+            if !ok {
+                throw BridgeError.badRequest(
+                    connections.state(forServerId: server.id).message ?? "Could not connect to \(server.name)."
+                )
+            }
+        }
+
+        return SyncContext(home: home, server: server, client: client)
+    }
+
+    private func buildEntityAreaMap(_ context: SyncContext) async throws -> [String: String] {
+        progress = SyncProgress(title: "Reading areas from \(context.server.name)")
+        let areas = try await context.client.fetchAreas()
+        progress = SyncProgress(title: "Reading entities from \(context.server.name)")
+        let entities = try await context.client.fetchEntityRegistry()
+        progress = SyncProgress(title: "Reading devices from \(context.server.name)")
+        let devices = try await context.client.fetchDeviceRegistry()
 
         var areaNameById: [String: String] = [:]
         for area in areas {
@@ -742,9 +748,9 @@ final class SyncEngine: ObservableObject {
         return result
     }
 
-    private func buildEntityNameMap() async throws -> [String: String] {
-        progress = SyncProgress(title: "Reading Home Assistant names")
-        let states = try await wsClient.getStates()
+    private func buildEntityNameMap(_ context: SyncContext) async throws -> [String: String] {
+        progress = SyncProgress(title: "Reading names from \(context.server.name)")
+        let states = try await context.client.getStates()
         var result: [String: String] = [:]
         for state in states {
             if let entityId = state["entity_id"] as? String,

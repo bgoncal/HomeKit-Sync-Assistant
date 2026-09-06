@@ -23,6 +23,22 @@ file before adding one.
 - Small config lives in `UserDefaults`, registered once in `App.init()` and read in
   views with `@AppStorage`. Reuse the existing key when touching persisted state.
 
+## Connections
+
+`ConnectionStore` is the source of truth for Home Assistant servers: it owns the
+models, the persistence, the link from each Apple Home to its server, and one
+`HAWebSocketClient` per server. Nothing else reads credentials, and no view holds a
+client.
+
+Rules that are easy to break:
+
+- Resolve a **home** first; the server, the client and the connection follow from it.
+  Anything Home Assistant-shaped takes a `homeId`.
+- A home is paired with exactly one server; linking it elsewhere unlinks it here.
+- A single server with no links serves every home (that is what an upgrade looks like).
+- Scheduled syncs exist on the Mac only — gate on `ScheduledActionManager.isSupported`,
+  never on `#if DEBUG` or a runtime setting.
+
 ## Values, not framework objects
 
 Views render plain `Codable`/`Equatable` structs (`HomeSummary`, `AccessorySummary`,

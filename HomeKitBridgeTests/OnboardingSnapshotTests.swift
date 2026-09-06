@@ -29,7 +29,7 @@ final class OnboardingSnapshotTests: SnapshotTestCase {
 
     func testHomeAssistantStepEmpty() {
         assertScreen(
-            onboarding(step: .homeAssistant, url: "", token: ""),
+            onboarding(step: .homeAssistant, server: HomeAssistantServer()),
             named: "onboarding-home-assistant-empty"
         )
     }
@@ -45,7 +45,7 @@ final class OnboardingSnapshotTests: SnapshotTestCase {
         assertScreen(
             onboarding(
                 step: .homeAssistant,
-                token: "short-token",
+                server: HomeAssistantServer(name: "House", address: "http://homeassistant.local:8123", token: "short-token"),
                 connectionState: .failed("Could not connect. Check the address and token, then try again.")
             ),
             named: "onboarding-home-assistant-failed"
@@ -63,16 +63,14 @@ final class OnboardingSnapshotTests: SnapshotTestCase {
         step: OnboardingStep,
         homeKitAuthorized: Bool = true,
         homeNames: [String] = ["Casa"],
-        url: String = "http://homeassistant.local:8123",
-        token: String = Fixtures.token,
+        server: HomeAssistantServer = Fixtures.houseServer,
         connectionState: ConnectionTestState = .idle
     ) -> some View {
         OnboardingContent(
             step: step,
             homeKitAuthorized: homeKitAuthorized,
             homeNames: homeNames,
-            haURL: .constant(url),
-            haToken: .constant(token),
+            server: .constant(server),
             connectionState: connectionState,
             onRequestHomeKitAccess: {},
             onTestConnection: {},

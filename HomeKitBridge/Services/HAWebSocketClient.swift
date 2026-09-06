@@ -78,20 +78,47 @@ final class HAWebSocketClient: ObservableObject {
     @Published private(set) var isConnected = false
     @Published private(set) var connectionError: String?
 
+    /// Which server this client talks to. One client per server; `ConnectionStore`
+    /// keeps them and updates the credentials when they are edited.
+    private(set) var address: String
+    private(set) var token: String
+
+    /// Called whenever the connection comes up or drops, including when it drops on
+    /// its own, so the store can publish one state for the whole app.
+    var onStateChange: ((Bool, String?) -> Void)?
+
     private var webSocket: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var nextId: Int = 1
     private var pendingHandlers: [Int: (Result<Any, Error>) -> Void] = [:]
-    private var haURL: String { UserDefaults.standard.string(forKey: "haURL") ?? HAConfiguration.defaultURL }
-    private var haToken: String { UserDefaults.standard.string(forKey: "haToken") ?? HAConfiguration.defaultToken }
     private var receiveTask: Task<Void, Never>?
 
+    init(address: String = HAConfiguration.defaultURL, token: String = HAConfiguration.defaultToken) {
+        self.address = address
+        self.token = token
+    }
+
+    /// Points the client at (possibly new) credentials, dropping any open connection
+    /// when they changed.
+    func configure(address: String, token: String) {
+        guard address != self.address || token != self.token else { return }
+        self.address = address
+        self.token = token
+        disconnect()
+    }
+
     func connect() async -> Bool {
+        let didConnect = await performConnect()
+        onStateChange?(didConnect, didConnect ? nil : connectionError)
+        return didConnect
+    }
+
+    private func performConnect() async -> Bool {
         disconnect()
         connectionError = nil
 
-        let base = HAConfiguration.normalizedURL(haURL)
-        let token = haToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = HAConfiguration.normalizedURL(address)
+        let token = self.token.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !base.isEmpty else {
             connectionError = "No Home Assistant address is set. Add one in Settings."
@@ -162,6 +189,7 @@ final class HAWebSocketClient: ObservableObject {
     }
 
     func disconnect() {
+        let wasConnected = isConnected
         receiveTask?.cancel()
         receiveTask = nil
         webSocket?.cancel(with: .normalClosure, reason: nil)
@@ -171,6 +199,9 @@ final class HAWebSocketClient: ObservableObject {
         isConnected = false
         pendingHandlers.removeAll()
         nextId = 1
+        if wasConnected {
+            onStateChange?(false, connectionError)
+        }
     }
 
     /// Send a command and wait for its response.
@@ -315,6 +346,7 @@ final class HAWebSocketClient: ObservableObject {
                     await MainActor.run {
                         self.isConnected = false
                         self.connectionError = "Lost the connection to Home Assistant: \(error.localizedDescription)"
+                        self.onStateChange?(false, self.connectionError)
                     }
                     // Notify all pending handlers
                     await MainActor.run {

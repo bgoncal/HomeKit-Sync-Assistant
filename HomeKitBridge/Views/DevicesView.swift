@@ -3,6 +3,7 @@ import SwiftUI
 struct DevicesView: View {
     @EnvironmentObject private var homeKitManager: HomeKitManager
     @EnvironmentObject private var syncEngine: SyncEngine
+    @EnvironmentObject private var connections: ConnectionStore
 
     @State private var path: [String] = []
     @State private var search = ""
@@ -20,9 +21,13 @@ struct DevicesView: View {
             )
             .navigationDestination(for: String.self) { accessoryId in
                 if let accessory = homeKitManager.accessory(byId: accessoryId) {
-                    DeviceDetailView(accessory: accessory)
-                        .environmentObject(homeKitManager)
-                        .environmentObject(syncEngine)
+                    DeviceDetailView(
+                        accessory: accessory,
+                        homeId: homeKitManager.selectedHome?.id ?? "",
+                        serverName: homeKitManager.selectedHome.flatMap { connections.server(forHomeId: $0.id)?.name }
+                    )
+                    .environmentObject(homeKitManager)
+                    .environmentObject(syncEngine)
                 } else {
                     ContentUnavailableView(
                         "Device Not Found",
@@ -163,6 +168,8 @@ enum DeviceMatchState: Equatable {
     case matched(HomeAssistantMatch)
     case notBridged
     case noEntity
+    /// The home this device is in has no Home Assistant server linked yet.
+    case noServer
     case failed(String)
 }
 
@@ -171,6 +178,8 @@ private struct DeviceDetailView: View {
     @EnvironmentObject private var syncEngine: SyncEngine
 
     let accessory: AccessorySummary
+    let homeId: String
+    let serverName: String?
 
     @State private var matchState: DeviceMatchState = .loading
     @State private var resolvedAccessory: AccessorySummary?
@@ -178,7 +187,8 @@ private struct DeviceDetailView: View {
     var body: some View {
         DeviceDetailContent(
             accessory: resolvedAccessory ?? accessory,
-            matchState: matchState
+            matchState: matchState,
+            serverName: serverName
         )
         .task(id: accessory.id) {
             await loadMatch()
@@ -196,8 +206,13 @@ private struct DeviceDetailView: View {
             return
         }
 
+        guard serverName != nil else {
+            matchState = .noServer
+            return
+        }
+
         do {
-            if let match = try await syncEngine.homeAssistantMatch(forEntityId: serial) {
+            if let match = try await syncEngine.homeAssistantMatch(forEntityId: serial, homeId: homeId) {
                 matchState = .matched(match)
             } else {
                 matchState = .noEntity
@@ -211,6 +226,8 @@ private struct DeviceDetailView: View {
 struct DeviceDetailContent: View {
     let accessory: AccessorySummary
     let matchState: DeviceMatchState
+    /// The Home Assistant paired with this device's home, when there is one.
+    var serverName: String?
 
     var body: some View {
         List {
@@ -238,7 +255,7 @@ struct DeviceDetailContent: View {
             } header: {
                 Text(SyncPlatform.appleHome.name)
             } footer: {
-                Text("Home Assistant writes the entity ID into the serial number, which is how the bridge pairs the two sides.")
+                Text("\(serverName ?? SyncPlatform.homeAssistant.name) writes the entity ID into the serial number, which is how the bridge pairs the two sides.")
             }
 
             if !accessory.services.isEmpty {
@@ -266,15 +283,15 @@ struct DeviceDetailContent: View {
                         .foregroundStyle(.secondary)
                 }
             } header: {
-                Text(SyncPlatform.homeAssistant.name)
+                Text(homeAssistantSectionTitle)
             }
 
         case .matched(let match):
             Section {
                 BridgeStatusRow(
                     title: "Paired",
-                    message: match.areaName.map { "This device syncs in both directions. In Home Assistant it sits in “\($0)”." }
-                        ?? "This device syncs in both directions. It has no Home Assistant area yet.",
+                    message: match.areaName.map { "This device syncs in both directions. In \(match.serverName) it sits in “\($0)”." }
+                        ?? "This device syncs in both directions. It has no area in \(match.serverName) yet.",
                     systemImage: "link.circle.fill",
                     tint: .green
                 )
@@ -289,7 +306,7 @@ struct DeviceDetailContent: View {
                     Text("Raw Data")
                 }
             } header: {
-                Text(SyncPlatform.homeAssistant.name)
+                Text(match.serverName)
             }
 
         case .notBridged:
@@ -301,7 +318,7 @@ struct DeviceDetailContent: View {
                     tint: .orange
                 )
             } header: {
-                Text(SyncPlatform.homeAssistant.name)
+                Text(homeAssistantSectionTitle)
             } footer: {
                 Text("Expose it through Home Assistant's HomeKit Bridge integration to sync it.")
             }
@@ -310,12 +327,26 @@ struct DeviceDetailContent: View {
             Section {
                 BridgeStatusRow(
                     title: "No Matching Entity",
-                    message: "“\(accessory.serialNumber ?? "")” does not match any Home Assistant entity ID. It may have been renamed or removed there.",
+                    message: "“\(accessory.serialNumber ?? "")” does not match any entity ID in \(homeAssistantSectionTitle). It may have been renamed or removed there.",
                     systemImage: "questionmark.circle.fill",
                     tint: .orange
                 )
             } header: {
+                Text(homeAssistantSectionTitle)
+            }
+
+        case .noServer:
+            Section {
+                BridgeStatusRow(
+                    title: "No Server Linked",
+                    message: "This device's home is not paired with a Home Assistant server, so nothing can be compared yet.",
+                    systemImage: "link.badge.plus",
+                    tint: .orange
+                )
+            } header: {
                 Text(SyncPlatform.homeAssistant.name)
+            } footer: {
+                Text("Link the home to a server in Settings.")
             }
 
         case .failed(let message):
@@ -327,9 +358,13 @@ struct DeviceDetailContent: View {
                     tint: .red
                 )
             } header: {
-                Text(SyncPlatform.homeAssistant.name)
+                Text(homeAssistantSectionTitle)
             }
         }
+    }
+
+    private var homeAssistantSectionTitle: String {
+        serverName ?? SyncPlatform.homeAssistant.name
     }
 }
 

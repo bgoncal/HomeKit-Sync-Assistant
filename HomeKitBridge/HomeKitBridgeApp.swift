@@ -6,7 +6,7 @@ struct HomeKitBridgeApp: App {
     // value avoids building a second, throwaway HomeKit manager on every launch.
     @StateObject private var homeKitManager: HomeKitManager
     @StateObject private var logStore: LogStore
-    @StateObject private var wsClient: HAWebSocketClient
+    @StateObject private var connections: ConnectionStore
 
     @StateObject private var syncEngine: SyncEngine
     @StateObject private var httpServer: HTTPServer
@@ -18,21 +18,19 @@ struct HomeKitBridgeApp: App {
     @AppStorage("autoStartServer") private var autoStartServer = true
 
     init() {
-        UserDefaults.standard.register(defaults: [
-            "haURL": HAConfiguration.defaultURL,
-            "haToken": HAConfiguration.defaultToken
-        ])
-
         let homeKit = HomeKitManager()
         let logs = LogStore()
-        let ws = HAWebSocketClient()
+        let connections = ConnectionStore()
         _homeKitManager = StateObject(wrappedValue: homeKit)
         _logStore = StateObject(wrappedValue: logs)
-        _wsClient = StateObject(wrappedValue: ws)
-        let sync = SyncEngine(homeKitManager: homeKit, logStore: logs, wsClient: ws)
+        _connections = StateObject(wrappedValue: connections)
+
+        let sync = SyncEngine(homeKitManager: homeKit, logStore: logs, connections: connections)
         _syncEngine = StateObject(wrappedValue: sync)
         _httpServer = StateObject(wrappedValue: HTTPServer(homeKit: homeKit, logStore: logs))
-        _scheduledActionManager = StateObject(wrappedValue: ScheduledActionManager(syncEngine: sync, logStore: logs))
+        _scheduledActionManager = StateObject(
+            wrappedValue: ScheduledActionManager(syncEngine: sync, logStore: logs, homeKitManager: homeKit)
+        )
     }
 
     var body: some Scene {
@@ -46,7 +44,7 @@ struct HomeKitBridgeApp: App {
             }
             .environmentObject(homeKitManager)
             .environmentObject(logStore)
-            .environmentObject(wsClient)
+            .environmentObject(connections)
             .environmentObject(syncEngine)
             .environmentObject(httpServer)
             .environmentObject(scheduledActionManager)
@@ -61,7 +59,7 @@ struct HomeKitBridgeApp: App {
                 scheduledActionManager.refreshSchedule()
 
                 Task {
-                    _ = await wsClient.connect()
+                    await connections.connectAll()
                 }
             }
         }

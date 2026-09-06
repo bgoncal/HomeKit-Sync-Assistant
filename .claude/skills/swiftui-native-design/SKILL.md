@@ -45,6 +45,14 @@ value belongs in the connected view.
   usually a `Menu` when there is more than one.
 - Five tabs at most on iPhone. Anything else is a row inside one of them.
 
+## Group per item
+
+Anything the person can have more than one of — a Home Assistant server, an Apple
+Home — gets **its own section** (Dashboard) or **its own row with a detail screen**
+(Settings), with that item's name as the section header. Never a single "Connection"
+section with fields for whichever one happens to be selected. Pairings between two
+kinds of item are a `Picker` on the row of the thing being paired.
+
 ## Rows
 
 The shared pieces live in `HomeKitBridge/Views/BridgeUI.swift`:

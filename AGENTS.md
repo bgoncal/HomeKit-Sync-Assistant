@@ -25,10 +25,12 @@ HomeKitBridge/
   HomeKitBridgeApp.swift     @main App — owns all services, injects via environment
   Models/                    Plain Codable/Identifiable value types
     HomeModels.swift           HomeSummary/RoomSummary/AccessorySummary/HomeAssistantMatch
+    HomeAssistantServer.swift  One server + ServerConnectionState
     LogEntry.swift
   Services/                  @MainActor ObservableObject business logic
     HomeKitManager.swift       HomeKit access; publishes HomeSummary values
-    HAWebSocketClient.swift     Home Assistant WebSocket client + HAConfiguration
+    ConnectionStore.swift       Every HA server, its link to an Apple Home, its client
+    HAWebSocketClient.swift     One Home Assistant WebSocket connection + HAConfiguration
     SyncEngine.swift            Sync operations, directions, dry runs
     HTTPServer.swift            Local HTTP API (Network framework) + BridgeError
     LogStore.swift              In-app log buffer
@@ -39,6 +41,36 @@ HomeKitBridge/
 HomeKitBridgeTests/          Snapshot + logic tests (see "Tests")
   __Snapshots__/             Reference PNGs, one per screen per platform
 ```
+
+## Connections
+
+The app talks to **several Home Assistant servers** and **several Apple Homes**.
+
+- `ConnectionStore` owns `[HomeAssistantServer]`, persists them as JSON in
+  `UserDefaults` (`homeAssistantServers`), and keeps one `HAWebSocketClient` per
+  server plus its `ServerConnectionState`.
+- **A home is paired with exactly one server** — its devices carry entity IDs from
+  that instance. Linking a home to a server takes it off any other. One server can
+  serve several homes.
+- **A single server with no explicit links serves every home.** That is what an
+  upgrade from the one-server version looks like, and `ConnectionStore` migrates the
+  old `haURL`/`haToken` defaults into that first server.
+- Everything that touches Home Assistant resolves a *home* first: `SyncEngine.dryRun`,
+  `execute`, and `homeAssistantMatch` all take a `homeId` and look up the server, the
+  client, and the connection from it. A `DryRunResult` remembers its `homeId` so
+  applying a plan cannot land on a different server than the preview did.
+- Screens group connection settings **per item**: one section per server on the
+  Dashboard, one row per server in Settings with a detail screen behind it, and a
+  per-home picker for the pairing.
+
+## Platform differences
+
+**Scheduled syncs are Mac-only.** iPhone and iPad suspend the app once it leaves the
+screen, so a daily timer there would fire only by accident. `ScheduledActionManager`
+refuses to schedule anything unless `ScheduledActionManager.isSupported` (Catalyst or
+macOS), the Actions screen is reachable only from Settings on the Mac, and the iOS
+Settings footer says so. Do not add a schedule, background-refresh or "auto sync"
+affordance to the iOS UI.
 
 ## Architecture rules
 

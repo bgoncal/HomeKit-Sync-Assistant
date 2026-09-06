@@ -3,18 +3,21 @@ import SwiftUI
 struct SyncView: View {
     @EnvironmentObject private var homeKitManager: HomeKitManager
     @EnvironmentObject private var syncEngine: SyncEngine
-    @EnvironmentObject private var scheduledActionManager: ScheduledActionManager
+    @EnvironmentObject private var connections: ConnectionStore
 
     @State private var operation: SyncOperation = .devicePlacementHAToHome
     @State private var dryRunResult: DryRunResult?
     @State private var isWorking = false
     @State private var errorMessage: String?
 
+    private var selectedHome: HomeSummary? { homeKitManager.selectedHome }
+
     var body: some View {
         SyncContent(
-            scheduleCount: scheduledActionManager.schedules.count,
             homes: homeKitManager.homes,
-            selectedHomeId: homeKitManager.selectedHome?.id,
+            selectedHomeId: selectedHome?.id,
+            serverName: selectedHome.flatMap { connections.server(forHomeId: $0.id)?.name },
+            serverState: selectedHome.flatMap { connections.state(forHomeId: $0.id) },
             operation: $operation,
             dryRunResult: dryRunResult,
             progress: syncEngine.progress,
@@ -23,6 +26,7 @@ struct SyncView: View {
             onSelectHome: { homeId in
                 homeKitManager.selectHome(id: homeId)
                 dryRunResult = nil
+                errorMessage = nil
             },
             onPreview: { Task { await runDryRun() } },
             onApply: { Task { await apply() } }
@@ -31,22 +35,17 @@ struct SyncView: View {
             dryRunResult = nil
             errorMessage = nil
         }
-        .navigationDestination(for: SyncRoute.self) { route in
-            switch route {
-            case .scheduledActions:
-                ActionsView()
-            }
-        }
     }
 
     private func runDryRun() async {
+        guard let homeId = selectedHome?.id else { return }
         isWorking = true
         errorMessage = nil
         dryRunResult = nil
         defer { isWorking = false }
 
         do {
-            dryRunResult = try await syncEngine.dryRun(operation)
+            dryRunResult = try await syncEngine.dryRun(operation, homeId: homeId)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -67,16 +66,13 @@ struct SyncView: View {
     }
 }
 
-/// Where the Sync screen can push to.
-enum SyncRoute: Hashable {
-    case scheduledActions
-}
-
 /// Pick a direction, preview the plan, then apply it.
 struct SyncContent: View {
-    var scheduleCount: Int = 0
     let homes: [HomeSummary]
     let selectedHomeId: String?
+    /// The Home Assistant paired with the selected home, if there is one.
+    var serverName: String?
+    var serverState: ServerConnectionState?
     @Binding var operation: SyncOperation
     let dryRunResult: DryRunResult?
     let progress: SyncProgress?
@@ -87,6 +83,7 @@ struct SyncContent: View {
     var onApply: () -> Void = {}
 
     private var hasHome: Bool { selectedHomeId != nil || !homes.isEmpty }
+    private var isLinked: Bool { serverName != nil }
 
     var body: some View {
         List {
@@ -109,36 +106,38 @@ struct SyncContent: View {
             }
 
             previewSection
-            scheduleSection
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Sync")
-    }
-
-    private var scheduleSection: some View {
-        Section {
-            NavigationLink(value: SyncRoute.scheduledActions) {
-                LabeledContent("Scheduled Actions", value: scheduleCount == 0 ? "None" : scheduleCount.formatted())
-            }
-        } footer: {
-            Text("Repeat one of these syncs every day at a set time.")
-        }
     }
 
     // MARK: Plan
 
     private var planSection: some View {
         Section {
-            if homes.count > 1 {
-                Picker("Apple Home", selection: Binding(
-                    get: { selectedHomeId ?? "" },
-                    set: { onSelectHome($0) }
-                )) {
-                    ForEach(homes) { home in
-                        Text(home.name).tag(home.id)
-                    }
+            Picker("Apple Home", selection: Binding(
+                get: { selectedHomeId ?? "" },
+                set: { onSelectHome($0) }
+            )) {
+                if homes.isEmpty {
+                    Text("None").tag("")
                 }
-                .disabled(isWorking)
+                ForEach(homes) { home in
+                    Text(home.name).tag(home.id)
+                }
+            }
+            .disabled(isWorking || homes.isEmpty)
+
+            LabeledContent(SyncPlatform.homeAssistant.name) {
+                if let serverName {
+                    BridgePill(
+                        title: serverName,
+                        systemImage: serverState?.isConnected == true ? "checkmark.circle.fill" : SyncPlatform.homeAssistant.symbolName,
+                        tint: serverState?.isConnected == true ? .green : SyncPlatform.homeAssistant.tint
+                    )
+                } else {
+                    BridgePill(title: "Not Linked", systemImage: "link.badge.plus", tint: .orange)
+                }
             }
 
             Picker("Sync", selection: $operation) {
@@ -183,17 +182,19 @@ struct SyncContent: View {
                     }
                 }
             }
-            .disabled(isWorking || !hasHome)
+            .disabled(isWorking || !hasHome || !isLinked)
 
             Button(action: onApply) {
                 Label(applyTitle, systemImage: "checkmark.circle")
             }
             .disabled(isWorking || !hasApplicableChanges)
         } footer: {
-            if hasHome {
-                Text("Preview lists every change first. Nothing is written until you apply it.")
-            } else {
+            if !hasHome {
                 Text("No Apple Home is available yet. Allow access on the Dashboard, then come back.")
+            } else if !isLinked {
+                Text("This home is not linked to a Home Assistant server yet. Link it in Settings, then come back.")
+            } else {
+                Text("Preview lists every change first. Nothing is written until you apply it.")
             }
         }
     }
