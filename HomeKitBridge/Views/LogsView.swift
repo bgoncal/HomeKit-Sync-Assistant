@@ -16,19 +16,28 @@ struct LogsView: View {
     }
 }
 
-enum LogFilter: Hashable {
+enum LogFilter: Hashable, CaseIterable {
     case all
-    case category(LogCategory)
+    case syncs
+    case localAPI
+    case problems
 
     var title: String {
         switch self {
         case .all: return "All"
-        case .category(let category): return category.title
+        case .syncs: return LogCategory.sync.title
+        case .localAPI: return LogCategory.server.title
+        case .problems: return LogCategory.error.title
         }
     }
 
-    static var allCases: [LogFilter] {
-        [.all] + LogCategory.allCases.map(LogFilter.category)
+    var category: LogCategory? {
+        switch self {
+        case .all: return nil
+        case .syncs: return .sync
+        case .localAPI: return .server
+        case .problems: return .error
+        }
     }
 }
 
@@ -40,107 +49,93 @@ struct LogsContent: View {
     var onClear: () -> Void = {}
 
     private var filtered: [LogEntry] {
-        entries.filter { entry in
-            let categoryMatch: Bool
-            switch selectedCategory {
-            case .all: categoryMatch = true
-            case .category(let category): categoryMatch = entry.category == category
-            }
-
-            let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return entries.filter { entry in
+            let categoryMatch = selectedCategory.category.map { $0 == entry.category } ?? true
             let searchMatch = query.isEmpty
                 || entry.message.localizedCaseInsensitiveContains(query)
                 || (entry.details?.localizedCaseInsensitiveContains(query) ?? false)
-
             return categoryMatch && searchMatch
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Activity")
-                        .font(.largeTitle.bold())
-                    Text("Every change the bridge applied, plus connection and local API events.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 12)
-                Button(action: onClear) {
-                    Label("Clear", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-                .disabled(entries.isEmpty)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Search activity", text: $search)
-                    .textFieldStyle(.roundedBorder)
-
-                Picker("Category", selection: $selectedCategory) {
-                    ForEach(LogFilter.allCases, id: \.self) { filter in
-                        Text(filter.title).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 360)
-            }
-
-            if filtered.isEmpty {
-                Spacer()
-                ContentUnavailableView(
-                    entries.isEmpty ? "Nothing has happened yet" : "No matching activity",
-                    systemImage: "clock",
-                    description: Text(entries.isEmpty
-                        ? "Applied changes, connection problems, and local API events show up here."
-                        : "Try a different search or category.")
-                )
-                Spacer()
-            } else {
-                List(filtered) { entry in
-                    logRow(entry)
-                        .padding(.vertical, 2)
-                }
-                .listStyle(.plain)
+        List {
+            ForEach(filtered) { entry in
+                row(entry)
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .systemGroupedBackground))
+        .listStyle(.insetGrouped)
+        .searchable(text: $search, prompt: "Search activity")
+        .overlay {
+            if filtered.isEmpty {
+                emptyState
+            }
+        }
         .navigationTitle("Activity")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("Show", selection: $selectedCategory) {
+                        ForEach(LogFilter.allCases, id: \.self) { filter in
+                            Text(filter.title).tag(filter)
+                        }
+                    }
+                    Section {
+                        Button("Clear Activity", systemImage: "trash", role: .destructive, action: onClear)
+                            .disabled(entries.isEmpty)
+                    }
+                } label: {
+                    Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                }
+            }
+        }
     }
 
-    private func logRow(_ entry: LogEntry) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Label(entry.category.title, systemImage: entry.category.symbolName)
-                    .font(.caption.bold())
-                    .foregroundStyle(entry.category.color)
-                Spacer()
-                Text(entry.timestamp.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    @ViewBuilder
+    private var emptyState: some View {
+        if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ContentUnavailableView.search(text: search)
+        } else if entries.isEmpty {
+            ContentUnavailableView(
+                "No Activity Yet",
+                systemImage: "clock",
+                description: Text("Applied changes, connection problems, and local API events show up here.")
+            )
+        } else {
+            ContentUnavailableView(
+                "Nothing in \(selectedCategory.title)",
+                systemImage: "line.3.horizontal.decrease.circle",
+                description: Text("Choose another category from the menu.")
+            )
+        }
+    }
 
-            Text(entry.message)
-                .font(.headline)
-                .fixedSize(horizontal: false, vertical: true)
+    private func row(_ entry: LogEntry) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: entry.category.symbolName)
+                    .font(.caption)
+                    .foregroundStyle(entry.category.color)
+                    .accessibilityHidden(true)
+                Text(entry.message)
+                    .font(.subheadline.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if let details = entry.details, !details.isEmpty {
-                DisclosureGroup("Details") {
-                    Text(details)
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 6)
-                }
-                .font(.callout)
+                Text(details)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Text(entry.timestamp.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }

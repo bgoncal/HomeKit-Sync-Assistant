@@ -14,7 +14,7 @@ struct SettingsView: View {
     @AppStorage("startAtLogin") private var startAtLogin = false
     @AppStorage("onboardingComplete") private var onboardingComplete = false
 
-    @State private var connectionState: OnboardingConnectionState = .idle
+    @State private var connectionState: ConnectionTestState = .idle
     @State private var loginItemError: String?
 
     var body: some View {
@@ -34,6 +34,12 @@ struct SettingsView: View {
         )
         .onChange(of: haURL) { _, _ in connectionState = .idle }
         .onChange(of: haToken) { _, _ in connectionState = .idle }
+        .navigationDestination(for: SettingsRoute.self) { route in
+            switch route {
+            case .localAPI:
+                EndpointsView()
+            }
+        }
     }
 
     private func testConnection() {
@@ -61,10 +67,15 @@ struct SettingsView: View {
     }
 }
 
+/// Where Settings can push to.
+enum SettingsRoute: Hashable {
+    case localAPI
+}
+
 struct SettingsContent: View {
     @Binding var haURL: String
     @Binding var haToken: String
-    let connectionState: OnboardingConnectionState
+    let connectionState: ConnectionTestState
     @Binding var serverPort: Int
     @Binding var autoStartServer: Bool
     let isServerRunning: Bool
@@ -76,188 +87,129 @@ struct SettingsContent: View {
     var onShowSetupAgain: () -> Void = {}
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Settings")
-                        .font(.largeTitle.bold())
-                    Text("Where the bridge connects, and what it is allowed to start on its own.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .settingsContainerRow()
-            }
-
-            Section {
-                SettingsContainer {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Address")
-                            .font(.headline)
-                        TextField("http://homeassistant.local:8123", text: $haURL)
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                        note(problem: HAConfiguration.urlProblem(haURL), okMessage: connectsToMessage)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Long-lived access token")
-                            .font(.headline)
-                        SecureField("Paste the token", text: $haToken)
-                        note(problem: HAConfiguration.tokenProblem(haToken), okMessage: nil)
-                    }
-
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 12) {
-                            testConnectionButton
-                            connectionStatus
-                        }
-                        VStack(alignment: .leading, spacing: 8) {
-                            testConnectionButton
-                            connectionStatus
-                        }
-                    }
-                }
-                .settingsContainerRow()
-            } header: {
-                Text("Home Assistant")
-            } footer: {
-                Text("The bridge reads areas, entities, and names over this connection, and writes to Home Assistant only when a sync in that direction is applied. The token is stored on this device.")
-            }
-
-            Section {
-                SettingsContainer {
-                    Toggle("Start the local API when the app opens", isOn: $autoStartServer)
-
-                    DisclosureGroup("Local API details") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Stepper("Port: \(String(serverPort))", value: $serverPort, in: 1...65535)
-                                .onChange(of: serverPort) { _, newValue in
-                                    onPortChange(newValue)
-                                }
-
-                            LabeledContent("Status", value: isServerRunning ? "Running" : "Stopped")
-
-                            Text("The local API only reads and updates Apple Home. It never changes anything in Home Assistant.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.top, 8)
-                    }
-                }
-                .settingsContainerRow()
-            } header: {
-                Text("Local API")
-            } footer: {
-                Text("Leave the defaults unless another app on this device already uses port \(String(serverPort)).")
-            }
-
-            Section("App") {
-                SettingsContainer {
-                    #if canImport(ServiceManagement) && os(macOS)
-                    Toggle("Open at login", isOn: Binding(
-                        get: { startAtLogin },
-                        set: { onStartAtLoginChange($0) }
-                    ))
-
-                    if let loginItemError {
-                        Text(loginItemError)
-                            .foregroundStyle(.red)
-                            .font(.footnote)
-                    }
-                    #endif
-
-                    Button("Show the Setup Guide Again", action: onShowSetupAgain)
-                }
-                .settingsContainerRow()
-            }
+        Form {
+            homeAssistantSection
+            localAPISection
+            appSection
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .frame(maxWidth: 760)
-        .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var testConnectionButton: some View {
-        Button(action: onTestConnection) {
-            Label("Test Connection", systemImage: "network")
+    // MARK: Home Assistant
+
+    private var homeAssistantSection: some View {
+        Section {
+            LabeledContent("Address") {
+                TextField("homeassistant.local:8123", text: $haURL)
+                    .multilineTextAlignment(.trailing)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .keyboardType(.URL)
+            }
+
+            LabeledContent("Token") {
+                SecureField("Long-lived access token", text: $haToken)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            Button(action: onTestConnection) {
+                HStack {
+                    Text("Test Connection")
+                    if connectionState == .testing {
+                        Spacer()
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(connectionState == .testing)
+
+            if let result = connectionResult {
+                BridgeStatusRow(
+                    title: result.title,
+                    message: result.message,
+                    systemImage: result.systemImage,
+                    tint: result.tint
+                )
+            }
+        } header: {
+            Text(SyncPlatform.homeAssistant.name)
+        } footer: {
+            Text(homeAssistantFooter)
         }
-        .buttonStyle(.bordered)
-        .disabled(connectionState == .testing)
-        .fixedSize()
     }
 
-    private var connectsToMessage: String? {
-        guard let url = HAConfiguration.webSocketURL(for: haURL) else { return nil }
-        return "Will connect to \(url.absoluteString)"
-    }
-
-    @ViewBuilder
-    private func note(problem: String?, okMessage: String?) -> some View {
-        if let problem {
-            Label(problem, systemImage: "exclamationmark.circle")
-                .font(.footnote)
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if let okMessage {
-            Text(okMessage)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+    private var homeAssistantFooter: String {
+        if !haURL.isEmpty, let problem = HAConfiguration.urlProblem(haURL) {
+            return problem
         }
+        if !haToken.isEmpty, let problem = HAConfiguration.tokenProblem(haToken) {
+            return problem
+        }
+        if haURL.isEmpty || haToken.isEmpty {
+            return "Enter the address you use to open Home Assistant, and a long-lived access token from your profile page."
+        }
+        if let url = HAConfiguration.webSocketURL(for: haURL) {
+            return "Connects to \(url.absoluteString). The token is stored on this device and is only sent to Home Assistant."
+        }
+        return "The token is stored on this device and is only sent to Home Assistant."
     }
 
-    @ViewBuilder
-    private var connectionStatus: some View {
+    private var connectionResult: (title: String, message: String, systemImage: String, tint: Color)? {
         switch connectionState {
-        case .idle:
-            EmptyView()
-        case .testing:
-            Text("Connecting…")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        case .idle, .testing:
+            return nil
         case .succeeded:
-            Label("Home Assistant is reachable", systemImage: "checkmark.circle.fill")
-                .font(.callout)
-                .foregroundStyle(.green)
+            return ("Connected", "Home Assistant answered and accepted the token.", "checkmark.circle.fill", .green)
         case .failed(let message):
-            Label(message, systemImage: "xmark.circle.fill")
-                .font(.callout)
-                .foregroundStyle(.red)
-                .fixedSize(horizontal: false, vertical: true)
+            return ("Not Connected", message, "exclamationmark.circle.fill", .red)
         }
     }
-}
 
-private struct SettingsContainer<Content: View>: View {
-    private let content: Content
+    // MARK: Local API
 
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
+    private var localAPISection: some View {
+        Section {
+            Toggle("Start When the App Opens", isOn: $autoStartServer)
 
-    var body: some View {
-        BridgeCard {
-            content
+            Stepper("Port: \(String(serverPort))", value: $serverPort, in: 1...65535)
+                .onChange(of: serverPort) { _, newValue in
+                    onPortChange(newValue)
+                }
+
+            LabeledContent("Status", value: isServerRunning ? "Running" : "Stopped")
+
+            NavigationLink(value: SettingsRoute.localAPI) {
+                Text("Endpoint Reference")
+            }
+        } header: {
+            Text("Local API")
+        } footer: {
+            Text("Lets your own scripts read and change Apple Home over this network. It never changes anything in Home Assistant. Change the port only if another app already uses it.")
         }
     }
-}
 
-private struct SettingsContainerRowModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-    }
-}
+    // MARK: App
 
-private extension View {
-    func settingsContainerRow() -> some View {
-        modifier(SettingsContainerRowModifier())
+    private var appSection: some View {
+        Section {
+            #if canImport(ServiceManagement) && os(macOS)
+            Toggle("Open at Login", isOn: Binding(
+                get: { startAtLogin },
+                set: { onStartAtLoginChange($0) }
+            ))
+
+            if let loginItemError {
+                Text(loginItemError)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+            #endif
+
+            Button("Show Setup Guide Again", action: onShowSetupAgain)
+        } header: {
+            Text("App")
+        } footer: {
+            Text("Scheduled actions only run while the app is open.")
+        }
     }
 }

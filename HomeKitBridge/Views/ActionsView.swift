@@ -16,7 +16,8 @@ struct ActionsView: View {
     }
 }
 
-/// Daily, unattended repeats of a sync direction.
+/// Daily, unattended repeats of one sync direction — one grouped section each,
+/// the way Settings shows a repeating rule.
 struct ActionsContent: View {
     let schedules: [ScheduledAction]
     var onAdd: () -> Void = {}
@@ -24,84 +25,95 @@ struct ActionsContent: View {
     var onDelete: (ScheduledAction) -> Void = { _ in }
 
     var body: some View {
-        BridgePage(
-            title: "Actions",
-            subtitle: "Repeat a sync every day at a set time, without opening the app."
-        ) {
-            overviewCard
-
-            if schedules.isEmpty {
-                BridgeCard {
-                    ContentUnavailableView(
-                        "No scheduled actions",
-                        systemImage: "clock.badge.plus",
-                        description: Text("Add an action, choose a time, and pick which direction it should sync.")
-                    )
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
+        List {
+            if !schedules.isEmpty {
+                Section {
+                    EmptyView()
+                } footer: {
+                    Text("A scheduled action applies its changes automatically, with no preview. Run the same direction on the Sync screen first, so you know what it will do.")
                 }
-            } else {
-                LazyVStack(spacing: 14) {
-                    ForEach(schedules) { schedule in
-                        ScheduledActionCard(
-                            schedule: binding(for: schedule),
-                            onDelete: { onDelete(schedule) }
-                        )
+            }
+
+            ForEach(schedules) { schedule in
+                section(for: schedule)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .overlay {
+            if schedules.isEmpty {
+                ContentUnavailableView {
+                    Label("No Scheduled Actions", systemImage: "clock.badge.plus")
+                } description: {
+                    Text("Repeat a sync every day at a set time, without opening the app.")
+                } actions: {
+                    Button("Add Action", action: onAdd)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .navigationTitle("Actions")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Add Action", systemImage: "plus", action: onAdd)
+            }
+        }
+    }
+
+    private func section(for schedule: ScheduledAction) -> some View {
+        let binding = binding(for: schedule)
+
+        return Section {
+            Toggle("Enabled", isOn: binding.isEnabled)
+
+            DatePicker(
+                "Time",
+                selection: timeBinding(for: binding),
+                displayedComponents: .hourAndMinute
+            )
+            .disabled(!schedule.isEnabled)
+
+            Picker("Sync", selection: binding.operationRawValue) {
+                Section(SyncDirection.homeAssistantToAppleHome.label) {
+                    ForEach(SyncOperation.allCases.filter { $0.direction == .homeAssistantToAppleHome }) { operation in
+                        Text(operation.shortTitle).tag(operation.rawValue)
+                    }
+                }
+                Section(SyncDirection.appleHomeToHomeAssistant.label) {
+                    ForEach(SyncOperation.allCases.filter { $0.direction == .appleHomeToHomeAssistant }) { operation in
+                        Text(operation.shortTitle).tag(operation.rawValue)
                     }
                 }
             }
-        }
-    }
+            .disabled(!schedule.isEnabled)
 
-    private var overviewCard: some View {
-        BridgeCard {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: 12) {
-                    overviewHeader
-                    Spacer(minLength: 12)
-                    addButton
-                }
-                VStack(alignment: .leading, spacing: 12) {
-                    overviewHeader
-                    addButton
+            if let operation = schedule.operation {
+                LabeledContent {
+                    BridgeDirectionBadge(direction: operation.direction)
+                } label: {
+                    Text("Direction")
                 }
             }
 
-            Label("A scheduled action applies its changes automatically — there is no preview step. Run the same direction manually on the Sync screen first, so you know what it will do.", systemImage: "exclamationmark.circle")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Button("Delete Action", role: .destructive) {
+                onDelete(schedule)
+            }
+        } header: {
+            Text(schedule.operation?.shortTitle ?? "Action Unavailable")
+        } footer: {
+            Text(summary(for: schedule))
         }
     }
 
-    private var overviewHeader: some View {
-        BridgeStatusHeader(
-            title: "Runs without asking",
-            message: overviewMessage,
-            systemImage: "clock.arrow.circlepath",
-            tint: .blue
-        )
-    }
+    private func summary(for schedule: ScheduledAction) -> String {
+        let action = schedule.operation?.displayTitle ?? "Pick a direction before this action can run."
+        let destination = schedule.operation?.direction.destination.name ?? "the other side"
+        let time = date(forMinutesAfterMidnight: schedule.timeMinutes)
+            .formatted(date: .omitted, time: .shortened)
 
-    private var addButton: some View {
-        Button(action: onAdd) {
-            Label("Add Action", systemImage: "plus.circle")
+        guard schedule.isEnabled else {
+            return "\(action). Paused — it was set to run daily at \(time)."
         }
-        .buttonStyle(.borderedProminent)
-        .fixedSize()
-    }
-
-    private var overviewMessage: String {
-        let enabledCount = schedules.filter(\.isEnabled).count
-        let totalCount = schedules.count
-
-        if totalCount == 0 {
-            return "Nothing is scheduled yet. The app only syncs when you ask it to."
-        }
-        if enabledCount == totalCount {
-            return "\(totalCount) scheduled action\(totalCount == 1 ? "" : "s") will run daily while the app is open."
-        }
-        return "\(enabledCount) of \(totalCount) scheduled actions will run daily while the app is open."
+        return "\(action). Every day at \(time), changes are applied in \(destination) while the app is open."
     }
 
     private func binding(for schedule: ScheduledAction) -> Binding<ScheduledAction> {
@@ -110,105 +122,11 @@ struct ActionsContent: View {
             set: { onUpdate($0) }
         )
     }
-}
 
-private struct ScheduledActionCard: View {
-    @Binding var schedule: ScheduledAction
-    let onDelete: () -> Void
-
-    private var operation: SyncOperation? { schedule.operation }
-
-    var body: some View {
-        BridgeCard {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Image(systemName: schedule.isEnabled ? "clock.badge.checkmark" : "clock.badge.xmark")
-                    .font(.title3)
-                    .foregroundStyle(schedule.isEnabled ? Color.green : Color.secondary)
-
-                Text(operation?.displayTitle ?? "Action unavailable")
-                    .font(.headline)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 8)
-
-                Toggle("Enabled", isOn: $schedule.isEnabled)
-                    .labelsHidden()
-
-                Button(role: .destructive, action: onDelete) {
-                    Label("Delete", systemImage: "trash")
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.borderless)
-            }
-
-            if let operation {
-                BridgeDirectionBadge(direction: operation.direction)
-            }
-
-            Text(scheduleSummary)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Divider()
-
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
-                GridRow {
-                    Label("Runs at", systemImage: "clock")
-                        .foregroundStyle(.secondary)
-                    DatePicker("Runs at", selection: scheduledTimeBinding, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .disabled(!schedule.isEnabled)
-                }
-
-                GridRow(alignment: .firstTextBaseline) {
-                    Label("Syncs", systemImage: "arrow.left.arrow.right")
-                        .foregroundStyle(.secondary)
-                        .gridColumnAlignment(.leading)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Picker("Syncs", selection: $schedule.operationRawValue) {
-                            Section(SyncDirection.homeAssistantToAppleHome.label) {
-                                ForEach(SyncOperation.allCases.filter { $0.direction == .homeAssistantToAppleHome }) { operation in
-                                    Text(operation.shortTitle).tag(operation.rawValue)
-                                }
-                            }
-                            Section(SyncDirection.appleHomeToHomeAssistant.label) {
-                                ForEach(SyncOperation.allCases.filter { $0.direction == .appleHomeToHomeAssistant }) { operation in
-                                    Text(operation.shortTitle).tag(operation.rawValue)
-                                }
-                            }
-                        }
-                        .labelsHidden()
-                        .disabled(!schedule.isEnabled)
-
-                        Text(operation?.description ?? "Pick a direction before this action can run.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        }
-        .opacity(schedule.isEnabled ? 1 : 0.72)
-    }
-
-    private var scheduleSummary: String {
-        let destination = operation?.direction.destination.name ?? "the other side"
-        if schedule.isEnabled {
-            return "Every day at \(timeText), changes are applied in \(destination)."
-        }
-        return "Paused. It was set to run daily at \(timeText)."
-    }
-
-    private var timeText: String {
-        date(forMinutesAfterMidnight: schedule.timeMinutes)
-            .formatted(date: .omitted, time: .shortened)
-    }
-
-    private var scheduledTimeBinding: Binding<Date> {
+    private func timeBinding(for schedule: Binding<ScheduledAction>) -> Binding<Date> {
         Binding(
-            get: { date(forMinutesAfterMidnight: schedule.timeMinutes) },
-            set: { schedule.timeMinutes = minutesAfterMidnight(for: $0) }
+            get: { date(forMinutesAfterMidnight: schedule.wrappedValue.timeMinutes) },
+            set: { schedule.wrappedValue.timeMinutes = minutesAfterMidnight(for: $0) }
         )
     }
 

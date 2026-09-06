@@ -92,8 +92,18 @@ struct AccessorySummary: Identifiable, Equatable, Codable {
 
     /// The Home Assistant entity ID this accessory maps to, if it is bridged from
     /// Home Assistant (which writes the entity ID into the HomeKit serial number).
+    ///
+    /// A native accessory carries a real hardware serial there, so the shape is what
+    /// tells the two apart: an entity ID is `domain.object_id`, lowercase, with one dot.
     var entityId: String? {
-        guard let serialNumber, !serialNumber.isEmpty else { return nil }
+        guard let serialNumber else { return nil }
+        let parts = serialNumber.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+
+        let allowed = CharacterSet.lowercaseLetters.union(.decimalDigits).union(CharacterSet(charactersIn: "_"))
+        guard serialNumber.replacingOccurrences(of: ".", with: "").unicodeScalars.allSatisfy(allowed.contains) else {
+            return nil
+        }
         return serialNumber
     }
 }

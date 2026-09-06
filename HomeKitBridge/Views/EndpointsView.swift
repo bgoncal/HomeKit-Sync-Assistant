@@ -1,7 +1,119 @@
 import SwiftUI
 
+/// The local HTTP API, as a reference list of endpoints.
 struct EndpointsView: View {
-    private let endpoints: [EndpointInfo] = [
+    @EnvironmentObject private var server: HTTPServer
+
+    var body: some View {
+        EndpointsContent(port: server.port, isRunning: server.isRunning)
+    }
+}
+
+struct EndpointsContent: View {
+    var port: Int = 8400
+    var isRunning: Bool = false
+
+    var body: some View {
+        List {
+            Section {
+                BridgeStatusRow(
+                    title: isRunning ? "Running" : "Stopped",
+                    message: isRunning
+                        ? "Reachable at http://this-device:\(port) from your network."
+                        : "Turn the local API on in Settings to use these endpoints.",
+                    systemImage: isRunning ? "checkmark.circle.fill" : "pause.circle.fill",
+                    tint: isRunning ? .green : .secondary
+                )
+            } footer: {
+                Text("These endpoints read and change Apple Home only, and are unauthenticated — use them from tools you trust on your own network.")
+            }
+
+            Section {
+                ForEach(EndpointInfo.all) { endpoint in
+                    NavigationLink {
+                        EndpointDetailContent(endpoint: endpoint)
+                    } label: {
+                        row(for: endpoint)
+                    }
+                }
+            } header: {
+                Text("Endpoints")
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Local API")
+    }
+
+    private func row(for endpoint: EndpointInfo) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                BridgePill(title: endpoint.method, systemImage: endpoint.symbolName, tint: endpoint.tint)
+                Text(endpoint.path)
+                    .font(.system(.footnote, design: .monospaced))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(endpoint.summary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// One endpoint, with the JSON it takes and the JSON it returns.
+struct EndpointDetailContent: View {
+    let endpoint: EndpointInfo
+
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Method", value: endpoint.method)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Path")
+                        .foregroundStyle(.secondary)
+                    Text(endpoint.path)
+                        .font(.system(.callout, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+                .padding(.vertical, 2)
+            } footer: {
+                Text(endpoint.summary)
+            }
+
+            if let requestBody = endpoint.requestBody {
+                Section {
+                    BridgeCodeBlock(content: requestBody)
+                } header: {
+                    Text("Request")
+                }
+            }
+
+            Section {
+                BridgeCodeBlock(content: endpoint.responseBody)
+            } header: {
+                Text("Response")
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(endpoint.path.split(separator: "/").last.map(String.init) ?? "Endpoint")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct EndpointInfo: Identifiable {
+    let id = UUID()
+    let method: String
+    let path: String
+    let summary: String
+    let requestBody: String?
+    let responseBody: String
+
+    var tint: Color { method == "POST" ? .green : .blue }
+    var symbolName: String { method == "POST" ? "arrow.up.circle" : "arrow.down.circle" }
+
+    static let all: [EndpointInfo] = [
         EndpointInfo(
             method: "GET",
             path: "/api/homes",
@@ -23,7 +135,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "GET",
             path: "/api/homes/{homeId}/accessories",
-            summary: "Lists the devices in one home, with the room they sit in and the serial number used to pair them with Home Assistant.",
+            summary: "Lists the devices in one home, with the room they sit in and the serial number that pairs them with Home Assistant.",
             requestBody: nil,
             responseBody: """
             {
@@ -43,7 +155,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "GET",
             path: "/api/homes/{homeId}/accessories/serials",
-            summary: "Same list, kept for older scripts that call the /serials path.",
+            summary: "The same list, kept for scripts that already call this path.",
             requestBody: nil,
             responseBody: """
             {
@@ -103,93 +215,4 @@ struct EndpointsView: View {
             """
         )
     ]
-
-    var body: some View {
-        BridgePage(
-            title: "Local API",
-            subtitle: "Let your own scripts read and change Apple Home over your local network."
-        ) {
-            BridgeCard {
-                BridgeStatusHeader(
-                    title: "Reads and writes Apple Home only",
-                    message: "These endpoints never touch Home Assistant. They are unauthenticated, so only use them from tools you trust on your own network.",
-                    systemImage: "point.3.connected.trianglepath.dotted",
-                    tint: .blue
-                )
-
-                Text("Send requests to this device on the port shown in Settings, for example http://<this-device>:8400/api/homes")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-
-            LazyVStack(spacing: 12) {
-                ForEach(endpoints) { endpoint in
-                    endpointCard(endpoint)
-                }
-            }
-        }
-    }
-
-    private func endpointCard(_ endpoint: EndpointInfo) -> some View {
-        BridgeCard {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(endpoint.method)
-                    .font(.caption.bold())
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(methodColor(endpoint.method).opacity(0.18))
-                    .foregroundStyle(methodColor(endpoint.method))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-
-                Text(endpoint.path)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-            }
-
-            Text(endpoint.summary)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            DisclosureGroup("Examples") {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let requestBody = endpoint.requestBody {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Request JSON")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            BridgeCodeBlock(content: requestBody)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Response JSON")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
-                        BridgeCodeBlock(content: endpoint.responseBody)
-                    }
-                }
-                .padding(.top, 8)
-            }
-        }
-    }
-
-    private func methodColor(_ method: String) -> Color {
-        switch method {
-        case "GET": return .blue
-        case "POST": return .green
-        default: return .secondary
-        }
-    }
-}
-
-private struct EndpointInfo: Identifiable {
-    let id = UUID()
-    let method: String
-    let path: String
-    let summary: String
-    let requestBody: String?
-    let responseBody: String
 }

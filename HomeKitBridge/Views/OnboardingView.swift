@@ -14,29 +14,40 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .welcome: return "Keep both homes in sync"
-        case .howItWorks: return "How the bridge works"
-        case .requirements: return "Before you start"
+        case .welcome: return "Welcome to Home Sync Assistant"
+        case .howItWorks: return "How It Works"
+        case .requirements: return "Before You Start"
         case .appleHome: return "Connect Apple Home"
         case .homeAssistant: return "Connect Home Assistant"
-        case .ready: return "You’re ready"
+        case .ready: return "You’re Ready"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .welcome: return "What this app does, in one screen."
-        case .howItWorks: return "How devices are matched, and when anything is written."
+        case .welcome: return "Keep Apple Home and Home Assistant telling the same story."
+        case .howItWorks: return "How devices are paired, and when anything is written."
         case .requirements: return "One Home Assistant setting decides whether syncing can work."
         case .appleHome: return "Allow the app to read and update your Apple Home."
         case .homeAssistant: return "Enter the address and access token for your Home Assistant."
         case .ready: return "Here’s what is set up, and where to go next."
         }
     }
+
+    var symbolName: String {
+        switch self {
+        case .welcome: return "arrow.left.arrow.right.circle.fill"
+        case .howItWorks: return "link.circle.fill"
+        case .requirements: return "exclamationmark.triangle.fill"
+        case .appleHome: return "house.fill"
+        case .homeAssistant: return "server.rack"
+        case .ready: return "checkmark.circle.fill"
+        }
+    }
 }
 
-/// Result of the "Test connection" button on the credentials step.
-enum OnboardingConnectionState: Equatable {
+/// Result of the "Test Connection" button, on setup and in Settings.
+enum ConnectionTestState: Equatable {
     case idle
     case testing
     case succeeded
@@ -54,7 +65,7 @@ struct OnboardingView: View {
     @AppStorage("onboardingComplete") private var onboardingComplete = false
 
     @State private var step: OnboardingStep = .welcome
-    @State private var connectionState: OnboardingConnectionState = .idle
+    @State private var connectionState: ConnectionTestState = .idle
 
     var body: some View {
         OnboardingContent(
@@ -79,34 +90,31 @@ struct OnboardingView: View {
         guard let index = steps.firstIndex(of: step) else { return }
         let next = index + offset
         guard steps.indices.contains(next) else { return }
-        step = steps[next]
+        withAnimation { step = steps[next] }
     }
 
     private func testConnection() {
         connectionState = .testing
         Task {
             let ok = await syncEngine.testHAConnection()
-            connectionState = ok ? .succeeded : .failed(errorMessage)
+            connectionState = ok
+                ? .succeeded
+                : .failed("Could not connect. Check the address and token, then try again.")
         }
-    }
-
-    private var errorMessage: String {
-        "Could not connect. Check the address and token, then try again."
     }
 }
 
 // MARK: - Content
 
-/// The onboarding flow with every input passed in, so each step can be previewed
-/// and snapshot tested without HomeKit or a Home Assistant server.
+/// Setup, in the shape of Apple's own welcome screens: an icon, a title, a few
+/// rows explaining the app, and one clear action at the bottom.
 struct OnboardingContent: View {
     let step: OnboardingStep
     let homeKitAuthorized: Bool
     let homeNames: [String]
     @Binding var haURL: String
     @Binding var haToken: String
-    let connectionState: OnboardingConnectionState
-    var animatesBackground = true
+    let connectionState: ConnectionTestState
     let onRequestHomeKitAccess: () -> Void
     let onTestConnection: () -> Void
     let onBack: () -> Void
@@ -117,92 +125,112 @@ struct OnboardingContent: View {
     private var stepCount: Int { OnboardingStep.allCases.count }
 
     var body: some View {
-        ZStack {
-            AmbientGlow(animates: animatesBackground)
-
-            VStack(alignment: .leading, spacing: 0) {
-                header
-
-                ScrollView {
-                    stepBody
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 20)
-                }
-
-                footer
+        VStack(spacing: 0) {
+            switch step {
+            case .welcome: welcomeStep
+            case .howItWorks: howItWorksStep
+            case .requirements: requirementsStep
+            case .appleHome: appleHomeStep
+            case .homeAssistant: homeAssistantStep
+            case .ready: readyStep
             }
-            .padding(24)
-            .frame(maxWidth: 720)
-            .background {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color(uiColor: .systemBackground).opacity(0.92))
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [.white.opacity(0.25), .white.opacity(0.02)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: .accentColor.opacity(0.28), radius: 30, x: 0, y: 12)
-            .padding(16)
+
+            actions
         }
     }
 
-    // MARK: Chrome
+    // MARK: Page scaffolding
+
+    private func page<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                header
+                VStack(alignment: .leading, spacing: 28) {
+                    content()
+                }
+                .padding(.top, 36)
+            }
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 24)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(Color(uiColor: .systemBackground))
+    }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Setup")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("Step \(stepNumber) of \(stepCount)")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-
-            ProgressView(value: Double(stepNumber), total: Double(stepCount))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(step.title)
-                    .font(.largeTitle.bold())
-                Text(step.subtitle)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.top, 4)
+        VStack(spacing: 16) {
+            icon
+                .padding(.top, 44)
+            Text(step.title)
+                .font(.largeTitle.weight(.bold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(step.subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var footer: some View {
-        HStack {
-            if step != .welcome {
-                Button("Back", action: onBack)
-                    .buttonStyle(.bordered)
+    private var icon: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [Color.accentColor, Color.accentColor.opacity(0.65)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 88, height: 88)
+            .overlay {
+                Image(systemName: step.symbolName)
+                    .font(.system(size: 44, weight: .medium))
+                    .foregroundStyle(.white)
             }
+            .accessibilityHidden(true)
+    }
 
-            Spacer()
+    private var actions: some View {
+        VStack(spacing: 12) {
+            Text("Step \(stepNumber) of \(stepCount)")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
 
             if step == .ready {
-                Button("Start Using the Bridge", action: onFinish)
-                    .buttonStyle(.borderedProminent)
-                    .glow(.accentColor)
+                Button(action: onFinish) {
+                    Text("Get Started")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             } else {
-                Button(nextButtonTitle, action: onNext)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canContinue)
-                    .glow(canContinue ? .accentColor : .clear)
+                Button(action: onNext) {
+                    Text(nextButtonTitle)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!canContinue)
+            }
+
+            if step != .welcome {
+                Button("Back", action: onBack)
+                    .font(.subheadline)
             }
         }
+        .frame(maxWidth: 460)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
+        .background(Color(uiColor: .systemBackground))
+        .overlay(alignment: .top) { Divider() }
     }
 
     private var nextButtonTitle: String {
@@ -220,145 +248,109 @@ struct OnboardingContent: View {
 
     // MARK: Steps
 
-    @ViewBuilder
-    private var stepBody: some View {
-        switch step {
-        case .welcome: welcomeStep
-        case .howItWorks: howItWorksStep
-        case .requirements: requirementsStep
-        case .appleHome: appleHomeStep
-        case .homeAssistant: homeAssistantStep
-        case .ready: readyStep
-        }
-    }
-
     private var welcomeStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Apple Home and Home Assistant each keep their own room names, device names, and device placement. This app compares the two and copies your choice from one side to the other.")
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 16) {
-                BridgeBulletRow(
-                    systemImage: SyncSubject.rooms.symbolName,
-                    title: SyncSubject.rooms.title,
-                    message: "Create the rooms or areas that only exist on one side.",
-                    tint: .blue
-                )
-                BridgeBulletRow(
-                    systemImage: SyncSubject.placement.symbolName,
-                    title: SyncSubject.placement.title,
-                    message: "Put each device in the same room on both sides.",
-                    tint: .purple
-                )
-                BridgeBulletRow(
-                    systemImage: SyncSubject.names.symbolName,
-                    title: SyncSubject.names.title,
-                    message: "Give each device the same name on both sides.",
-                    tint: .teal
-                )
-            }
-
-            BridgeCard {
-                BridgeStatusHeader(
-                    title: "You pick the direction every time",
-                    message: "Each sync runs one way only. The side you copy from is never modified.",
-                    systemImage: "arrow.left.arrow.right.circle.fill",
-                    tint: .accentColor
-                )
-                BridgeDirectionBadge(direction: .homeAssistantToAppleHome, showsExplanation: true)
-                BridgeDirectionBadge(direction: .appleHomeToHomeAssistant, showsExplanation: true)
-            }
+        page {
+            BridgeFeatureRow(
+                systemImage: SyncSubject.rooms.symbolName,
+                title: SyncSubject.rooms.title,
+                message: "Create the rooms or areas that only exist on one side.",
+                tint: .blue
+            )
+            BridgeFeatureRow(
+                systemImage: SyncSubject.placement.symbolName,
+                title: SyncSubject.placement.title,
+                message: "Put each device in the same room on both sides.",
+                tint: .purple
+            )
+            BridgeFeatureRow(
+                systemImage: SyncSubject.names.symbolName,
+                title: SyncSubject.names.title,
+                message: "Give each device the same name on both sides.",
+                tint: .teal
+            )
+            BridgeFeatureRow(
+                systemImage: "arrow.left.arrow.right",
+                title: "You Pick the Direction",
+                message: "Every sync runs one way. The side you copy from is never modified.",
+                tint: .orange
+            )
         }
     }
 
     private var howItWorksStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 16) {
-                BridgeBulletRow(
-                    systemImage: "number",
-                    title: "Devices are matched by entity ID",
-                    message: "Home Assistant writes each entity ID (like light.kitchen) into the serial number of the device it exposes to Apple Home. That serial number is how the two sides are paired.",
-                    tint: .blue
-                )
-                BridgeBulletRow(
-                    systemImage: "list.bullet.clipboard",
-                    title: "Nothing is written until you preview",
-                    message: "Every sync starts as a preview that lists each change. You apply it only when the list looks right.",
-                    tint: .orange
-                )
-                BridgeBulletRow(
-                    systemImage: "clock.arrow.circlepath",
-                    title: "Repeat it on a schedule",
-                    message: "Once a direction works for you, Actions can run the same sync daily at a set time.",
-                    tint: .green
-                )
-                BridgeBulletRow(
-                    systemImage: "point.3.connected.trianglepath.dotted",
-                    title: "Drive Apple Home from your own tools",
-                    message: "The bridge can also serve a small local API on this device, for scripts and automations on your network.",
-                    tint: .purple
-                )
-            }
+        page {
+            BridgeFeatureRow(
+                systemImage: "number",
+                title: "Paired by Entity ID",
+                message: "Home Assistant writes each entity ID, like light.kitchen, into the serial number of the device it exposes to Apple Home. That is how the two sides are matched.",
+                tint: .blue
+            )
+            BridgeFeatureRow(
+                systemImage: "list.bullet.clipboard",
+                title: "Preview, Then Apply",
+                message: "Every sync starts as a list of the exact changes. Nothing is written until you apply it.",
+                tint: .orange
+            )
+            BridgeFeatureRow(
+                systemImage: "clock.arrow.circlepath",
+                title: "Repeat on a Schedule",
+                message: "Once a direction works for you, Actions can run it daily at a set time.",
+                tint: .green
+            )
+            BridgeFeatureRow(
+                systemImage: "point.3.connected.trianglepath.dotted",
+                title: "Your Own Tools",
+                message: "A small local API can read and change Apple Home from scripts on your network.",
+                tint: .purple
+            )
         }
     }
 
     private var requirementsStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            BridgeCard {
-                BridgeStatusHeader(
-                    title: "Expose your devices with the HomeKit Bridge integration",
-                    message: "In Home Assistant, add the HomeKit Bridge integration and let it expose the devices you want to keep in sync.",
-                    systemImage: "exclamationmark.triangle.fill",
-                    tint: .orange
-                )
-
-                Text("Devices that reach Apple Home another way — a native HomeKit accessory, or a different bridge — carry a real hardware serial number instead of an entity ID, so this app cannot pair them and will skip them.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(alignment: .leading, spacing: 16) {
-                BridgeBulletRow(
-                    systemImage: "checkmark.circle",
-                    title: "Works",
-                    message: "Devices bridged from Home Assistant into Apple Home.",
-                    tint: .green
-                )
-                BridgeBulletRow(
-                    systemImage: "minus.circle",
-                    title: "Skipped",
-                    message: "Native HomeKit accessories and devices from other bridges. They stay untouched.",
-                    tint: .secondary
-                )
-            }
+        page {
+            BridgeFeatureRow(
+                systemImage: "app.connected.to.app.below.fill",
+                title: "Use the HomeKit Bridge Integration",
+                message: "In Home Assistant, add the HomeKit Bridge integration and let it expose the devices you want to keep in sync.",
+                tint: .orange
+            )
+            BridgeFeatureRow(
+                systemImage: "checkmark.circle",
+                title: "Works",
+                message: "Devices bridged from Home Assistant into Apple Home.",
+                tint: .green
+            )
+            BridgeFeatureRow(
+                systemImage: "minus.circle",
+                title: "Skipped",
+                message: "Native HomeKit accessories and devices from other bridges. They carry a real hardware serial number, so they cannot be paired — and they stay untouched.",
+                tint: .secondary
+            )
         }
     }
 
     private var appleHomeStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            BridgeCard {
-                BridgeStatusHeader(
-                    title: homeKitAuthorized ? "Apple Home is connected" : "Apple Home access needed",
-                    message: homeKitAuthorized
-                        ? homeSummaryMessage
-                        : "The app reads your rooms and devices, and updates them only when you apply a sync.",
-                    systemImage: homeKitAuthorized ? "checkmark.circle.fill" : "house.circle",
-                    tint: homeKitAuthorized ? .green : .orange
-                )
+        page {
+            BridgeStatusRow(
+                title: homeKitAuthorized ? "Connected" : "Access Needed",
+                message: homeKitAuthorized ? homeSummaryMessage : "The app reads your rooms and devices, and updates them only when you apply a sync.",
+                systemImage: homeKitAuthorized ? "checkmark.circle.fill" : "lock.circle.fill",
+                tint: homeKitAuthorized ? .green : .orange
+            )
 
-                if !homeKitAuthorized {
-                    Button(action: onRequestHomeKitAccess) {
-                        Label("Allow Access to Apple Home", systemImage: "lock.open")
-                    }
-                    .buttonStyle(.borderedProminent)
+            if !homeKitAuthorized {
+                Button(action: onRequestHomeKitAccess) {
+                    Text("Allow Access to Apple Home")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
             }
 
-            BridgeBulletRow(
+            BridgeFeatureRow(
                 systemImage: "lightbulb",
-                title: "No permission prompt?",
-                message: "Open the Apple Home app once on this device, then come back and tap the button again.",
+                title: "No Prompt?",
+                message: "Open the Apple Home app once on this device, then come back and try again.",
                 tint: .yellow
             )
         }
@@ -366,171 +358,130 @@ struct OnboardingContent: View {
 
     private var homeSummaryMessage: String {
         switch homeNames.count {
-        case 0: return "No homes found yet. They appear here once Apple Home finishes loading."
-        case 1: return "Found “\(homeNames[0])”. You can switch homes later on the Sync screen."
-        default: return "Found \(homeNames.count) homes: \(homeNames.joined(separator: ", ")). You pick which one to sync later."
+        case 0: return "No homes have loaded yet. They appear once Apple Home finishes syncing."
+        case 1: return "Found “\(homeNames[0])”."
+        default: return "Found \(homeNames.count) homes: \(homeNames.joined(separator: ", ")). You choose which one to sync later."
         }
     }
 
     private var homeAssistantStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            BridgeCard {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Address")
-                        .font(.headline)
+        Form {
+            Section {
+                header
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 8)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+            }
+
+            Section {
+                TextField("homeassistant.local:8123", text: $haURL)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .keyboardType(.URL)
+            } header: {
+                Text("Address")
+            } footer: {
+                if haURL.isEmpty {
                     Text("The same address you type in a browser to open Home Assistant.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    TextField("http://homeassistant.local:8123", text: $haURL)
-                        .textFieldStyle(.roundedBorder)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
-                    fieldNote(problem: HAConfiguration.urlProblem(haURL), okMessage: connectsToMessage)
+                } else if let problem = HAConfiguration.urlProblem(haURL) {
+                    Text(problem).foregroundStyle(.orange)
+                } else if let url = HAConfiguration.webSocketURL(for: haURL) {
+                    Text("Will connect to \(url.absoluteString)")
                 }
+            }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Long-lived access token")
-                        .font(.headline)
-                    Text("Home Assistant → your profile → Security → Long-lived access tokens → Create token.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    SecureField("Paste the token", text: $haToken)
-                        .textFieldStyle(.roundedBorder)
-                    fieldNote(problem: HAConfiguration.tokenProblem(haToken), okMessage: "Token saved on this device only.")
+            Section {
+                SecureField("Paste the token", text: $haToken)
+            } header: {
+                Text("Long-Lived Access Token")
+            } footer: {
+                if !haToken.isEmpty, let problem = HAConfiguration.tokenProblem(haToken) {
+                    Text(problem).foregroundStyle(.orange)
+                } else {
+                    Text("In Home Assistant: your profile → Security → Long-lived access tokens → Create token. The token is stored on this device.")
                 }
+            }
 
-                Divider()
-
-                HStack(spacing: 12) {
-                    Button(action: onTestConnection) {
-                        Label("Test Connection", systemImage: "network")
+            Section {
+                Button(action: onTestConnection) {
+                    HStack {
+                        Text("Test Connection")
+                        if connectionState == .testing {
+                            Spacer()
+                            ProgressView()
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(connectionState == .testing || !canContinue)
+                }
+                .disabled(connectionState == .testing || !canContinue)
 
-                    connectionStatus
+                if let result = connectionResult {
+                    BridgeStatusRow(
+                        title: result.title,
+                        message: result.message,
+                        systemImage: result.systemImage,
+                        tint: result.tint
+                    )
+                }
+
+                Link(destination: URL(string: "https://www.home-assistant.io/docs/authentication/")!) {
+                    Label("How to Create a Token", systemImage: "arrow.up.right.square")
                 }
             }
-
-            Link(destination: URL(string: "https://www.home-assistant.io/docs/authentication/")!) {
-                Label("How to create a long-lived access token", systemImage: "questionmark.circle")
-            }
-            .font(.callout)
         }
     }
 
-    private var connectsToMessage: String? {
-        guard let url = HAConfiguration.webSocketURL(for: haURL) else { return nil }
-        return "Will connect to \(url.absoluteString)"
-    }
-
-    @ViewBuilder
-    private func fieldNote(problem: String?, okMessage: String?) -> some View {
-        if let problem {
-            Label(problem, systemImage: "exclamationmark.circle")
-                .font(.footnote)
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if let okMessage {
-            Text(okMessage)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-        }
-    }
-
-    @ViewBuilder
-    private var connectionStatus: some View {
+    private var connectionResult: (title: String, message: String, systemImage: String, tint: Color)? {
         switch connectionState {
-        case .idle:
-            EmptyView()
-        case .testing:
-            Text("Connecting…")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        case .idle, .testing:
+            return nil
         case .succeeded:
-            Label("Connected to Home Assistant", systemImage: "checkmark.circle.fill")
-                .font(.callout)
-                .foregroundStyle(.green)
+            return ("Connected", "Home Assistant answered and accepted the token.", "checkmark.circle.fill", .green)
         case .failed(let message):
-            Label(message, systemImage: "xmark.circle.fill")
-                .font(.callout)
-                .foregroundStyle(.red)
-                .fixedSize(horizontal: false, vertical: true)
+            return ("Not Connected", message, "exclamationmark.circle.fill", .red)
         }
     }
 
     private var readyStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            BridgeCard {
-                BridgeInfoRow(label: "Apple Home", value: homeKitAuthorized ? "Connected" : "Not connected yet")
-                BridgeInfoRow(label: "Home Assistant", value: connectionState == .succeeded ? "Connected" : "Saved, not tested")
-                BridgeInfoRow(label: "Address", value: HAConfiguration.normalizedURL(haURL).isEmpty ? "Not set" : HAConfiguration.normalizedURL(haURL), selectable: true)
+        Form {
+            Section {
+                header
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 8)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
             }
 
-            VStack(alignment: .leading, spacing: 16) {
-                BridgeBulletRow(
-                    systemImage: "house",
+            Section {
+                LabeledContent(SyncPlatform.appleHome.name, value: homeKitAuthorized ? "Connected" : "Not connected")
+                LabeledContent(SyncPlatform.homeAssistant.name, value: connectionState == .succeeded ? "Connected" : "Saved, not tested")
+                LabeledContent("Address", value: HAConfiguration.normalizedURL(haURL).isEmpty ? "Not set" : HAConfiguration.normalizedURL(haURL))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } header: {
+                Text("Setup")
+            }
+
+            Section {
+                BridgeFeatureRow(
+                    systemImage: "square.grid.2x2",
                     title: "Start on Dashboard",
-                    message: "It shows at a glance whether Apple Home, Home Assistant, and the local API are ready.",
+                    message: "It shows whether both sides and the local API are ready.",
                     tint: .blue
                 )
-                BridgeBulletRow(
+                BridgeFeatureRow(
                     systemImage: "arrow.triangle.2.circlepath",
-                    title: "Then open Sync",
+                    title: "Then Open Sync",
                     message: "Pick a direction, preview the changes, and apply them when the list looks right.",
                     tint: .green
                 )
-                BridgeBulletRow(
+                BridgeFeatureRow(
                     systemImage: "gearshape",
-                    title: "Setup lives in Settings",
-                    message: "You can change the address, the token, and run this guide again at any time.",
+                    title: "Setup Lives in Settings",
+                    message: "Change the address or token, or run this guide again, at any time.",
                     tint: .secondary
                 )
             }
         }
-    }
-}
-
-// MARK: - Backdrop
-
-/// A soft, slowly breathing multi-color glow used as an onboarding backdrop.
-private struct AmbientGlow: View {
-    var animates = true
-
-    @State private var animate = false
-
-    var body: some View {
-        ZStack {
-            glowCircle(.accentColor, size: 380, opacity: 0.22)
-                .offset(x: animate ? -150 : -80, y: animate ? -150 : -90)
-            glowCircle(.purple, size: 340, opacity: 0.18)
-                .offset(x: animate ? 160 : 100, y: animate ? 130 : 70)
-            glowCircle(.teal, size: 300, opacity: 0.16)
-                .offset(x: animate ? 70 : 20, y: animate ? -70 : 130)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .onAppear {
-            guard animates else { return }
-            withAnimation(.easeInOut(duration: 7).repeatForever(autoreverses: true)) {
-                animate = true
-            }
-        }
-    }
-
-    private func glowCircle(_ color: Color, size: CGFloat, opacity: Double) -> some View {
-        Circle()
-            .fill(color)
-            .frame(width: size, height: size)
-            .blur(radius: 120)
-            .opacity(opacity)
-    }
-}
-
-private extension View {
-    /// Adds a soft colored halo around a view (used for prominent buttons).
-    func glow(_ color: Color, radius: CGFloat = 12) -> some View {
-        shadow(color: color.opacity(0.55), radius: radius, x: 0, y: 3)
     }
 }

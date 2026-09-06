@@ -15,30 +15,42 @@ struct MainTabView: View {
                         .tag(section)
                 }
             }
-            .navigationTitle("HomeKit Bridge")
+            .navigationTitle("Home Sync Assistant")
         } detail: {
-            selectedSectionView
-                .toolbar {
-                    Button {
-                        isActivityPresented.toggle()
-                    } label: {
-                        Label("Activity", systemImage: "clock")
-                    }
-                    .help("Show what the bridge has done")
+            NavigationStack {
+                selectedSectionView
+            }
+            .toolbar {
+                Button {
+                    isActivityPresented.toggle()
+                } label: {
+                    Label("Activity", systemImage: "clock")
                 }
+                .help("Show what the bridge has done")
+            }
         }
         .inspector(isPresented: $isActivityPresented) {
-            LogsView()
-                .inspectorColumnWidth(min: 360, ideal: 420, max: 560)
+            NavigationStack {
+                LogsView()
+            }
+            .inspectorColumnWidth(min: 320, ideal: 380, max: 520)
         }
         #else
         TabView {
-            primaryTabItems
+            NavigationStack { DashboardView() }
+                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2") }
 
-            LogsView()
-                .tabItem {
-                    Label("Activity", systemImage: "clock")
-                }
+            DevicesView()
+                .tabItem { Label("Devices", systemImage: "sensor") }
+
+            NavigationStack { SyncView() }
+                .tabItem { Label("Sync", systemImage: "arrow.triangle.2.circlepath") }
+
+            NavigationStack { LogsView() }
+                .tabItem { Label("Activity", systemImage: "list.bullet.rectangle") }
+
+            NavigationStack { SettingsView() }
+                .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         #endif
     }
@@ -62,39 +74,6 @@ struct MainTabView: View {
         }
     }
     #endif
-
-    @ViewBuilder
-    private var primaryTabItems: some View {
-        DashboardView()
-            .tabItem {
-                Label("Dashboard", systemImage: "house")
-            }
-
-        DevicesView()
-            .tabItem {
-                Label("Devices", systemImage: "sensor.tag.radiowaves.forward")
-            }
-
-        SyncView()
-            .tabItem {
-                Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-            }
-
-        ActionsView()
-            .tabItem {
-                Label("Actions", systemImage: "bolt.badge.clock")
-            }
-
-        EndpointsView()
-            .tabItem {
-                Label("Local API", systemImage: "point.3.connected.trianglepath.dotted")
-            }
-
-        SettingsView()
-            .tabItem {
-                Label("Settings", systemImage: "gearshape")
-            }
-    }
 }
 
 #if os(macOS) || targetEnvironment(macCatalyst)
@@ -121,10 +100,10 @@ private enum SidebarSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .dashboard: return "house"
-        case .devices: return "sensor.tag.radiowaves.forward"
+        case .dashboard: return "square.grid.2x2"
+        case .devices: return "sensor"
         case .sync: return "arrow.triangle.2.circlepath"
-        case .actions: return "bolt.badge.clock"
+        case .actions: return "clock.arrow.circlepath"
         case .endpoints: return "point.3.connected.trianglepath.dotted"
         case .settings: return "gearshape"
         }

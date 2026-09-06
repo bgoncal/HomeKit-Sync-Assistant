@@ -18,6 +18,9 @@ tools. Single app target, no external package dependencies.
 ### Layout
 
 ```
+.claude/
+  agents/                    Subagents for building screens, snapshots, and copy
+  skills/                    swift-style, swiftui-native-design, snapshot-tests
 HomeKitBridge/
   HomeKitBridgeApp.swift     @main App — owns all services, injects via environment
   Models/                    Plain Codable/Identifiable value types
@@ -31,7 +34,7 @@ HomeKitBridge/
     LogStore.swift              In-app log buffer
     ScheduledActionManager.swift
   Views/                     SwiftUI views
-    BridgeUI.swift             Shared UI components (BridgePage, BridgeCard, …)
+    BridgeUI.swift             Shared rows and pills (BridgeStatusRow, BridgePill, …)
     MainTabView.swift, *View.swift
 HomeKitBridgeTests/          Snapshot + logic tests (see "Tests")
   __Snapshots__/             Reference PNGs, one per screen per platform
@@ -80,6 +83,20 @@ HomeKitBridgeTests/          Snapshot + logic tests (see "Tests")
   `@Published` string (`connectionError`) rather than crashing. Avoid
   `try!`/`fatalError` in app flow. Use `guard ... else { throw/return }` early.
 
+## Agents and skills
+
+`.claude/skills/` holds the working knowledge for this repo — load them before writing code:
+
+- **`swift-style`** — services, concurrency, errors, and the value types views render.
+- **`swiftui-native-design`** — how a screen is shaped so it looks like a built-in iOS
+  app, plus the copy rules.
+- **`snapshot-tests`** — running, recording and debugging the snapshots on both platforms.
+
+`.claude/agents/` holds subagents for the recurring jobs: `swiftui-screen-builder`
+(build or restyle a screen, with its snapshots), `snapshot-recorder` (re-record and
+review references after an intentional change), and `product-copy-editor` (review the
+user-facing words).
+
 ## SwiftUI conventions
 
 - **Every screen is split in two.** A connected view (`DashboardView`) reads the
@@ -93,10 +110,13 @@ HomeKitBridgeTests/          Snapshot + logic tests (see "Tests")
 - **Views are small `struct`s.** Break a `body` into `private var someCard: some View`
   computed properties or `private func row(...) -> some View` helpers (see
   `DashboardView`) instead of one giant view tree.
-- **Reuse the shared components in `BridgeUI.swift`** — `BridgePage` (screen scaffold
-  with title/subtitle, 900pt max width), `BridgeCard`, `BridgeStatusHeader`,
-  `BridgeInfoRow`, `BridgeCodeBlock`. New screens should start from `BridgePage`.
-  Generic container views take content via `@ViewBuilder`.
+- **Screens are stock `List`/`Form` + `Section`**, `.listStyle(.insetGrouped)`, with the
+  explanation in the section footer. `LabeledContent` for facts, `ContentUnavailableView`
+  for empty and failed states, `.searchable` for long lists, `.toolbar` for secondary
+  actions, and a drill-down instead of a nested disclosure. No custom cards or gradients.
+- **Reuse the shared components in `BridgeUI.swift`** — `BridgeStatusRow`,
+  `BridgeFeatureRow`, `BridgePill`, `BridgeDirectionBadge`, `BridgeCodeBlock`.
+  See the `swiftui-native-design` skill for the full pattern.
 - **Styling idioms already in use:** SF Symbols via `Image(systemName:)`/`Label`;
   `.foregroundStyle(...)` (not `.foregroundColor`); `.regularMaterial` / `.quaternary`
   backgrounds; `RoundedRectangle(cornerRadius:style: .continuous)` clips; semantic

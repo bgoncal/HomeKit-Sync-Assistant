@@ -63,3 +63,18 @@ final class SyncOperationTests: XCTestCase {
         )
     }
 }
+
+final class AccessorySummaryTests: XCTestCase {
+    func testEntityIDIsOnlyReadFromHomeAssistantShapedSerials() {
+        XCTAssertEqual(
+            AccessorySummary(name: "Kitchen", serialNumber: "light.kitchen_ceiling").entityId,
+            "light.kitchen_ceiling"
+        )
+        // A native accessory's hardware serial is not an entity ID.
+        XCTAssertNil(AccessorySummary(name: "Lock", serialNumber: "AC-99201-XT").entityId)
+        XCTAssertNil(AccessorySummary(name: "Lock", serialNumber: "1.2.3").entityId)
+        XCTAssertNil(AccessorySummary(name: "Lock", serialNumber: "Light.Kitchen").entityId)
+        XCTAssertNil(AccessorySummary(name: "Lock", serialNumber: "").entityId)
+        XCTAssertNil(AccessorySummary(name: "Lock").entityId)
+    }
+}

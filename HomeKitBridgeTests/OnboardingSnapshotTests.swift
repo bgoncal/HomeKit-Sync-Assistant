@@ -65,7 +65,7 @@ final class OnboardingSnapshotTests: SnapshotTestCase {
         homeNames: [String] = ["Casa"],
         url: String = "http://homeassistant.local:8123",
         token: String = Fixtures.token,
-        connectionState: OnboardingConnectionState = .idle
+        connectionState: ConnectionTestState = .idle
     ) -> some View {
         OnboardingContent(
             step: step,
@@ -74,7 +74,6 @@ final class OnboardingSnapshotTests: SnapshotTestCase {
             haURL: .constant(url),
             haToken: .constant(token),
             connectionState: connectionState,
-            animatesBackground: false,
             onRequestHomeKitAccess: {},
             onTestConnection: {},
             onBack: {},

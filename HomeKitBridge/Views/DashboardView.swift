@@ -23,7 +23,7 @@ struct DashboardView: View {
     }
 }
 
-/// Status of both sides of the bridge, rendered from plain values.
+/// Status of both sides of the bridge, one grouped section each.
 struct DashboardContent: View {
     let isHomeKitAuthorized: Bool
     let home: HomeSummary?
@@ -37,139 +37,116 @@ struct DashboardContent: View {
     var onDisconnectHomeAssistant: () -> Void = {}
 
     var body: some View {
-        BridgePage(
-            title: "Dashboard",
-            subtitle: "Both sides have to be connected before the bridge can compare or change anything."
-        ) {
-            VStack(spacing: 14) {
-                appleHomeCard
-                homeAssistantCard
-                localAPICard
-            }
+        List {
+            appleHomeSection
+            homeAssistantSection
+            localAPISection
         }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Dashboard")
     }
 
-    private var appleHomeCard: some View {
-        BridgeCard {
-            BridgeStatusHeader(
-                title: SyncPlatform.appleHome.name,
-                message: appleHomeMessage,
+    // MARK: Apple Home
+
+    private var appleHomeSection: some View {
+        Section {
+            BridgeStatusRow(
+                title: appleHomeStatusTitle,
+                message: appleHomeStatusMessage,
                 systemImage: isHomeKitAuthorized ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
                 tint: isHomeKitAuthorized ? .green : .orange
             )
 
             if let home {
-                HStack(spacing: 12) {
-                    summaryMetric("Rooms", value: home.rooms.count, icon: "door.left.hand.open")
-                    summaryMetric("Devices", value: home.accessories.count, icon: "sensor.tag.radiowaves.forward")
-                }
-
-                DisclosureGroup("Apple Home details") {
-                    VStack(spacing: 8) {
-                        BridgeInfoRow(label: "Home being synced", value: home.name)
-                        BridgeInfoRow(label: "Identifier", value: home.id, selectable: true)
-                    }
-                    .padding(.top, 8)
-                }
+                LabeledContent("Home", value: home.name)
+                LabeledContent("Rooms", value: home.rooms.count.formatted())
+                LabeledContent("Devices", value: home.accessories.count.formatted())
             } else {
-                Button(action: onRequestHomeKitAccess) {
-                    Label("Allow Access to Apple Home", systemImage: "lock.open")
-                }
-                .buttonStyle(.borderedProminent)
+                Button("Allow Access to Apple Home", action: onRequestHomeKitAccess)
             }
+        } header: {
+            Text(SyncPlatform.appleHome.name)
+        } footer: {
+            Text("The bridge reads your rooms and devices. Nothing here changes until you apply a sync.")
         }
     }
 
-    private var appleHomeMessage: String {
+    private var appleHomeStatusTitle: String {
+        guard isHomeKitAuthorized else { return "Waiting for access" }
+        return home == nil ? "No home loaded" : "Connected"
+    }
+
+    private var appleHomeStatusMessage: String {
         guard isHomeKitAuthorized else {
-            return "Waiting for permission to read your rooms and devices."
+            return "Allow access so the bridge can read your rooms and devices."
         }
         guard let home else {
-            return "Access granted, but no home has loaded yet. Open the Apple Home app once, then come back."
+            return "Open the Apple Home app once on this device, then come back."
         }
-        return "Reading “\(home.name)”. Nothing here changes until you apply a sync."
+        return "Syncing “\(home.name)”."
     }
 
-    private var homeAssistantCard: some View {
-        BridgeCard {
-            BridgeStatusHeader(
-                title: SyncPlatform.homeAssistant.name,
-                message: homeAssistantMessage,
+    // MARK: Home Assistant
+
+    private var homeAssistantSection: some View {
+        Section {
+            BridgeStatusRow(
+                title: isHomeAssistantConnected ? "Connected" : "Not connected",
+                message: homeAssistantStatusMessage,
                 systemImage: isHomeAssistantConnected ? "checkmark.circle.fill" : "wifi.exclamationmark",
                 tint: isHomeAssistantConnected ? .green : .red
             )
 
-            HStack {
-                if isHomeAssistantConnected {
-                    Button(action: onDisconnectHomeAssistant) {
-                        Label("Disconnect", systemImage: "power")
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    Button(action: onConnectHomeAssistant) {
-                        Label("Connect", systemImage: "bolt.horizontal")
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                Spacer()
+            if !homeAssistantAddress.isEmpty {
+                LabeledContent("Address", value: homeAssistantAddress)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
-            if let homeAssistantError, !homeAssistantError.isEmpty {
-                DisclosureGroup("Why the connection failed") {
-                    Text(homeAssistantError)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 8)
-                }
+            if isHomeAssistantConnected {
+                Button("Disconnect", action: onDisconnectHomeAssistant)
+            } else {
+                Button("Connect", action: onConnectHomeAssistant)
+            }
+        } header: {
+            Text(SyncPlatform.homeAssistant.name)
+        } footer: {
+            if let homeAssistantError, !homeAssistantError.isEmpty, !isHomeAssistantConnected {
+                Text(homeAssistantError)
+                    .foregroundStyle(.red)
+            } else {
+                Text("Areas, entity names, and device placement are read over this connection.")
             }
         }
     }
 
-    private var homeAssistantMessage: String {
+    private var homeAssistantStatusMessage: String {
         if isHomeAssistantConnected {
-            return homeAssistantAddress.isEmpty
-                ? "Connected. Areas, entities, and names can be compared."
-                : "Connected to \(homeAssistantAddress). Areas, entities, and names can be compared."
+            return "Ready to compare both homes."
         }
         return homeAssistantAddress.isEmpty
-            ? "No address set yet. Add one in Settings before syncing."
-            : "Not connected to \(homeAssistantAddress). Syncing is unavailable until it connects."
+            ? "Add the address and token in Settings."
+            : "Syncing is unavailable until it connects."
     }
 
-    private var localAPICard: some View {
-        BridgeCard {
-            BridgeStatusHeader(
-                title: "Local API",
+    // MARK: Local API
+
+    private var localAPISection: some View {
+        Section {
+            BridgeStatusRow(
+                title: isServerRunning ? "Running" : "Stopped",
                 message: isServerRunning
-                    ? "Listening on port \(serverPort) for your own scripts and automations on this network."
-                    : "Stopped. Turn it on in Settings if you want to control Apple Home from your own tools.",
+                    ? "Listening on this device for your own scripts."
+                    : "Turn it on in Settings to control Apple Home from your own tools.",
                 systemImage: isServerRunning ? "checkmark.circle.fill" : "pause.circle.fill",
-                tint: isServerRunning ? .green : .orange
+                tint: isServerRunning ? .green : .secondary
             )
 
-            DisclosureGroup("Local API details") {
-                VStack(spacing: 8) {
-                    BridgeInfoRow(label: "Status", value: isServerRunning ? "Running" : "Stopped")
-                    BridgeInfoRow(label: "Port", value: String(serverPort), selectable: true)
-                }
-                .padding(.top, 8)
-            }
+            LabeledContent("Port", value: String(serverPort))
+        } header: {
+            Text("Local API")
+        } footer: {
+            Text("The local API only reads and updates Apple Home. It never changes anything in Home Assistant.")
         }
-    }
-
-    private func summaryMetric(_ title: String, value: Int, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: icon)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value.formatted())
-                .font(.title2.bold())
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

@@ -9,9 +9,14 @@ enum SnapshotScreen {
     #if targetEnvironment(macCatalyst)
     static let platformName = "mac"
     static let size = CGSize(width: 1_000, height: 760)
+    /// Catalyst has no device configuration, so it renders at a window-sized frame.
+    static let layout = SwiftUISnapshotLayout.fixed(width: size.width, height: size.height)
     #else
     static let platformName = "iPhone"
-    static let size = CGSize(width: 393, height: 852)
+    static let size = CGSize(width: 390, height: 844)
+    /// A real device layout, so the references carry the status bar and home
+    /// indicator insets the app actually gets.
+    static let layout = SwiftUISnapshotLayout.device(config: .iPhone13Pro)
     #endif
 
     /// Where reference images are read from and written to.
@@ -58,6 +63,7 @@ extension SnapshotTestCase {
         testName: String = #function,
         line: UInt = #line
     ) {
+        let layout = SnapshotScreen.layout
         let screen = view
             .environment(\.locale, Locale(identifier: "en_US"))
             .environment(\.colorScheme, .light)
@@ -69,7 +75,7 @@ extension SnapshotTestCase {
             as: .image(
                 precision: 0.99,
                 perceptualPrecision: 0.98,
-                layout: .fixed(width: size.width, height: size.height),
+                layout: layout,
                 traits: UITraitCollection(traitsFrom: [
                     UITraitCollection(userInterfaceStyle: .light),
                     UITraitCollection(displayScale: 2),

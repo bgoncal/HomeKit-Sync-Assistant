@@ -3,6 +3,7 @@ import SwiftUI
 struct SyncView: View {
     @EnvironmentObject private var homeKitManager: HomeKitManager
     @EnvironmentObject private var syncEngine: SyncEngine
+    @EnvironmentObject private var scheduledActionManager: ScheduledActionManager
 
     @State private var operation: SyncOperation = .devicePlacementHAToHome
     @State private var dryRunResult: DryRunResult?
@@ -11,6 +12,7 @@ struct SyncView: View {
 
     var body: some View {
         SyncContent(
+            scheduleCount: scheduledActionManager.schedules.count,
             homes: homeKitManager.homes,
             selectedHomeId: homeKitManager.selectedHome?.id,
             operation: $operation,
@@ -28,6 +30,12 @@ struct SyncView: View {
         .onChange(of: operation) { _, _ in
             dryRunResult = nil
             errorMessage = nil
+        }
+        .navigationDestination(for: SyncRoute.self) { route in
+            switch route {
+            case .scheduledActions:
+                ActionsView()
+            }
         }
     }
 
@@ -59,8 +67,14 @@ struct SyncView: View {
     }
 }
 
-/// Picking a direction, previewing the plan, and applying it.
+/// Where the Sync screen can push to.
+enum SyncRoute: Hashable {
+    case scheduledActions
+}
+
+/// Pick a direction, preview the plan, then apply it.
 struct SyncContent: View {
+    var scheduleCount: Int = 0
     let homes: [HomeSummary]
     let selectedHomeId: String?
     @Binding var operation: SyncOperation
@@ -72,86 +86,114 @@ struct SyncContent: View {
     var onPreview: () -> Void = {}
     var onApply: () -> Void = {}
 
-    private var hasHome: Bool { selectedHomeId != nil }
+    private var hasHome: Bool { selectedHomeId != nil || !homes.isEmpty }
 
     var body: some View {
-        BridgePage(
-            title: "Sync",
-            subtitle: "Choose which side to copy from. Nothing is written until you apply the preview."
-        ) {
-            planCard
-            statusSection
+        List {
+            planSection
+            actionsSection
+
+            if let progress {
+                progressSection(progress)
+            }
+
+            if let errorMessage {
+                Section {
+                    BridgeStatusRow(
+                        title: "Sync Stopped",
+                        message: errorMessage,
+                        systemImage: "exclamationmark.triangle.fill",
+                        tint: .red
+                    )
+                }
+            }
+
             previewSection
+            scheduleSection
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Sync")
+    }
+
+    private var scheduleSection: some View {
+        Section {
+            NavigationLink(value: SyncRoute.scheduledActions) {
+                LabeledContent("Scheduled Actions", value: scheduleCount == 0 ? "None" : scheduleCount.formatted())
+            }
+        } footer: {
+            Text("Repeat one of these syncs every day at a set time.")
         }
     }
 
     // MARK: Plan
 
-    private var planCard: some View {
-        BridgeCard {
-            homePicker
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("What to sync")
-                    .font(.headline)
-
-                Picker("What to sync", selection: $operation) {
-                    Section(SyncDirection.homeAssistantToAppleHome.label) {
-                        ForEach(SyncOperation.allCases.filter { $0.direction == .homeAssistantToAppleHome }) { operation in
-                            Text(operation.shortTitle).tag(operation)
-                        }
-                    }
-                    Section(SyncDirection.appleHomeToHomeAssistant.label) {
-                        ForEach(SyncOperation.allCases.filter { $0.direction == .appleHomeToHomeAssistant }) { operation in
-                            Text(operation.shortTitle).tag(operation)
-                        }
+    private var planSection: some View {
+        Section {
+            if homes.count > 1 {
+                Picker("Apple Home", selection: Binding(
+                    get: { selectedHomeId ?? "" },
+                    set: { onSelectHome($0) }
+                )) {
+                    ForEach(homes) { home in
+                        Text(home.name).tag(home.id)
                     }
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
                 .disabled(isWorking)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            Picker("Sync", selection: $operation) {
+                Section(SyncDirection.homeAssistantToAppleHome.label) {
+                    ForEach(SyncOperation.allCases.filter { $0.direction == .homeAssistantToAppleHome }) { operation in
+                        Text(operation.shortTitle).tag(operation)
+                    }
+                }
+                Section(SyncDirection.appleHomeToHomeAssistant.label) {
+                    ForEach(SyncOperation.allCases.filter { $0.direction == .appleHomeToHomeAssistant }) { operation in
+                        Text(operation.shortTitle).tag(operation)
+                    }
+                }
+            }
+            .disabled(isWorking)
+
+            LabeledContent {
                 BridgeDirectionBadge(direction: operation.direction)
-
-                Text(operation.displayTitle)
-                    .font(.headline)
-
-                Text(operation.description)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label(operation.direction.explanation, systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            } label: {
+                Text("Direction")
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.35))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-            HStack(spacing: 12) {
-                Button(action: onPreview) {
+            Text(operation.displayTitle)
+                .font(.subheadline.weight(.semibold))
+        } header: {
+            Text("Plan")
+        } footer: {
+            Text(operation.description)
+        }
+    }
+
+    // MARK: Actions
+
+    private var actionsSection: some View {
+        Section {
+            Button(action: onPreview) {
+                HStack {
                     Label("Preview Changes", systemImage: "list.bullet.clipboard")
+                    if isWorking {
+                        Spacer()
+                        ProgressView()
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isWorking || !hasHome)
-
-                Button(action: onApply) {
-                    Label(applyTitle, systemImage: "checkmark.circle")
-                }
-                .buttonStyle(.bordered)
-                .disabled(isWorking || !hasApplicableChanges || !hasHome)
             }
+            .disabled(isWorking || !hasHome)
 
-            if !hasHome {
-                Label("Pick an Apple Home first. If the list is empty, grant HomeKit access on the Dashboard.", systemImage: "exclamationmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
+            Button(action: onApply) {
+                Label(applyTitle, systemImage: "checkmark.circle")
+            }
+            .disabled(isWorking || !hasApplicableChanges)
+        } footer: {
+            if hasHome {
+                Text("Preview lists every change first. Nothing is written until you apply it.")
+            } else {
+                Text("No Apple Home is available yet. Allow access on the Dashboard, then come back.")
             }
         }
     }
@@ -169,70 +211,31 @@ struct SyncContent: View {
         return !dryRunResult.changes.isEmpty
     }
 
-    private var homePicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Apple Home to sync")
-                .font(.headline)
+    // MARK: Progress
 
-            Picker("Apple Home to sync", selection: Binding(
-                get: { selectedHomeId ?? "" },
-                set: { onSelectHome($0) }
-            )) {
-                if homes.isEmpty {
-                    Text("No Apple homes found").tag("")
-                } else {
-                    ForEach(homes) { home in
-                        Text(home.name).tag(home.id)
+    private func progressSection(_ progress: SyncProgress) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(progress.title)
+                    .font(.subheadline.weight(.semibold))
+                if let detail = progress.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let fractionCompleted = progress.fractionCompleted {
+                    ProgressView(value: fractionCompleted)
+                    if let completed = progress.completed, let total = progress.total {
+                        Text("\(completed) of \(total)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
                     }
                 }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .disabled(isWorking || homes.isEmpty)
-        }
-    }
-
-    // MARK: Status
-
-    @ViewBuilder
-    private var statusSection: some View {
-        if let progress {
-            progressCard(progress)
-        }
-
-        if let errorMessage {
-            BridgeCard {
-                BridgeStatusHeader(
-                    title: "Sync stopped",
-                    message: errorMessage,
-                    systemImage: "exclamationmark.triangle.fill",
-                    tint: .red
-                )
-            }
-        }
-    }
-
-    private func progressCard(_ progress: SyncProgress) -> some View {
-        BridgeCard {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(progress.title)
-                    .font(.headline)
-                if let detail = progress.detail, !detail.isEmpty {
-                    Text(detail)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if let fractionCompleted = progress.fractionCompleted {
-                ProgressView(value: fractionCompleted)
-                if let completed = progress.completed, let total = progress.total {
-                    Text("\(completed) of \(total)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
+            .padding(.vertical, 2)
+        } header: {
+            Text("In Progress")
         }
     }
 
@@ -241,88 +244,56 @@ struct SyncContent: View {
     @ViewBuilder
     private var previewSection: some View {
         if let dryRunResult {
-            BridgeCard {
-                BridgeStatusHeader(
-                    title: dryRunResult.changes.isEmpty ? "Already in sync" : "Preview of what will change",
-                    message: dryRunResult.summary,
-                    systemImage: dryRunResult.changes.isEmpty ? "checkmark.circle.fill" : "list.bullet.clipboard.fill",
-                    tint: dryRunResult.changes.isEmpty ? .green : .orange
-                )
-                BridgeDirectionBadge(direction: dryRunResult.operation.direction)
-            }
-
-            if !dryRunResult.changes.isEmpty {
-                LazyVStack(spacing: 12) {
-                    ForEach(dryRunResult.changes) { change in
-                        BridgeCard {
-                            changeRow(change)
-                        }
-                    }
+            if dryRunResult.changes.isEmpty {
+                Section {
+                    BridgeStatusRow(
+                        title: "Already in Sync",
+                        message: dryRunResult.summary,
+                        systemImage: "checkmark.circle.fill",
+                        tint: .green
+                    )
+                } header: {
+                    Text("Preview")
                 }
-            }
-        } else {
-            BridgeCard {
-                ContentUnavailableView(
-                    "No preview yet",
-                    systemImage: "list.bullet.clipboard",
-                    description: Text("Preview first to see every change the bridge would make in \(operation.direction.destination.name).")
-                )
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
+            } else {
+                Section {
+                    ForEach(dryRunResult.changes) { change in
+                        changeRow(change)
+                    }
+                } header: {
+                    Text("Preview · \(dryRunResult.changes.count) Change\(dryRunResult.changes.count == 1 ? "" : "s")")
+                } footer: {
+                    Text(dryRunResult.summary)
+                }
             }
         }
     }
 
     private func changeRow(_ change: SyncChange) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: icon(for: change.action))
-                    .foregroundStyle(iconColor(for: change.action))
-                    .frame(width: 18)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(change.title)
-                        .font(.headline)
-                    Text(change.details)
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-            }
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon(for: change.action))
+                .font(.body)
+                .foregroundStyle(iconColor(for: change.action))
+                .frame(width: 24)
+                .accessibilityHidden(true)
 
-            if hasTechnicalDetails(change) {
-                DisclosureGroup("Technical details") {
-                    VStack(spacing: 6) {
-                        if let accessoryId = change.accessoryId {
-                            BridgeInfoRow(label: "Device", value: accessoryId, selectable: true)
-                        }
-                        if let roomId = change.roomId {
-                            BridgeInfoRow(label: "Room", value: roomId, selectable: true)
-                        }
-                        if let homeId = change.homeId {
-                            BridgeInfoRow(label: "Home", value: homeId, selectable: true)
-                        }
-                        if let extraData = change.extraData {
-                            ForEach(extraData.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
-                                BridgeInfoRow(label: key, value: value, selectable: true)
-                            }
-                        }
-                    }
-                    .padding(.top, 8)
-                }
-                .font(.callout)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(change.title)
+                    .font(.body.weight(.medium))
+                Text(change.details)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-
-    private func hasTechnicalDetails(_ change: SyncChange) -> Bool {
-        change.accessoryId != nil || change.roomId != nil || change.homeId != nil || change.extraData?.isEmpty == false
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 
     private func icon(for action: SyncActionType) -> String {
         switch action {
         case .createRoom: return "plus.square"
-        case .renameRoom: return "text.cursor"
+        case .renameRoom: return "character.cursor.ibeam"
         case .moveAccessory: return "arrow.left.arrow.right"
         case .renameAccessory: return "pencil"
         case .unsupported: return "exclamationmark.triangle"

@@ -379,8 +379,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "Home Sync Assistant reads your rooms and devices to compare them with Home Assistant, and changes them only when you apply a sync.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Home Sync Assistant connects to Home Assistant on this network, and can serve a small local API for your own scripts.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -431,8 +431,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Sync Assistant";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSHomeKitUsageDescription = "HomeKit Bridge needs access to your HomeKit accessories to expose them via API.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "HomeKit Bridge needs local network access to communicate with Home Assistant and HomeKit devices.";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "Home Sync Assistant reads your rooms and devices to compare them with Home Assistant, and changes them only when you apply a sync.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Home Sync Assistant connects to Home Assistant on this network, and can serve a small local API for your own scripts.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
