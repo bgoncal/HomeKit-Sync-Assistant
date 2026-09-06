@@ -2,9 +2,11 @@ import SwiftUI
 
 @main
 struct HomeKitBridgeApp: App {
-    @StateObject private var homeKitManager = HomeKitManager()
-    @StateObject private var logStore = LogStore()
-    @StateObject private var wsClient = HAWebSocketClient()
+    // Every service is created once in `init()`; declaring them without a default
+    // value avoids building a second, throwaway HomeKit manager on every launch.
+    @StateObject private var homeKitManager: HomeKitManager
+    @StateObject private var logStore: LogStore
+    @StateObject private var wsClient: HAWebSocketClient
 
     @StateObject private var syncEngine: SyncEngine
     @StateObject private var httpServer: HTTPServer
@@ -49,7 +51,7 @@ struct HomeKitBridgeApp: App {
             .environmentObject(httpServer)
             .environmentObject(scheduledActionManager)
             .onAppear {
-                guard !didStartLaunchServices else { return }
+                guard !didStartLaunchServices, !ProcessInfo.processInfo.isRunningTests else { return }
                 didStartLaunchServices = true
 
                 if autoStartServer {
@@ -63,5 +65,14 @@ struct HomeKitBridgeApp: App {
                 }
             }
         }
+    }
+}
+
+extension ProcessInfo {
+    /// True while the app is only hosting the test bundle. Launch work (HomeKit
+    /// access, the local server, the Home Assistant connection) is skipped then, so
+    /// tests never prompt for permission or touch the network.
+    var isRunningTests: Bool {
+        environment["XCTestConfigurationFilePath"] != nil || environment["XCTestBundlePath"] != nil
     }
 }

@@ -4,30 +4,48 @@ struct ActionsView: View {
     @EnvironmentObject private var scheduledActionManager: ScheduledActionManager
 
     var body: some View {
+        ActionsContent(
+            schedules: scheduledActionManager.schedules,
+            onAdd: { scheduledActionManager.addSchedule() },
+            onUpdate: { scheduledActionManager.updateSchedule($0) },
+            onDelete: { schedule in
+                guard let index = scheduledActionManager.schedules.firstIndex(where: { $0.id == schedule.id }) else { return }
+                scheduledActionManager.deleteSchedules(at: IndexSet(integer: index))
+            }
+        )
+    }
+}
+
+/// Daily, unattended repeats of a sync direction.
+struct ActionsContent: View {
+    let schedules: [ScheduledAction]
+    var onAdd: () -> Void = {}
+    var onUpdate: (ScheduledAction) -> Void = { _ in }
+    var onDelete: (ScheduledAction) -> Void = { _ in }
+
+    var body: some View {
         BridgePage(
             title: "Actions",
-            subtitle: "Schedule sync actions to run automatically at specific times."
+            subtitle: "Repeat a sync every day at a set time, without opening the app."
         ) {
-            actionsOverview
+            overviewCard
 
-            if scheduledActionManager.schedules.isEmpty {
+            if schedules.isEmpty {
                 BridgeCard {
                     ContentUnavailableView(
-                        "No Scheduled Actions",
+                        "No scheduled actions",
                         systemImage: "clock.badge.plus",
-                        description: Text("Add an action, choose when it runs, and select the sync operation to perform.")
+                        description: Text("Add an action, choose a time, and pick which direction it should sync.")
                     )
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
                 }
             } else {
                 LazyVStack(spacing: 14) {
-                    ForEach(scheduledActionManager.schedules) { schedule in
+                    ForEach(schedules) { schedule in
                         ScheduledActionCard(
                             schedule: binding(for: schedule),
-                            operationTitle: operationTitle,
-                            operationDescription: operationDescription,
-                            onDelete: { deleteSchedule(schedule) }
+                            onDelete: { onDelete(schedule) }
                         )
                     }
                 }
@@ -35,102 +53,83 @@ struct ActionsView: View {
         }
     }
 
-    private var actionsOverview: some View {
+    private var overviewCard: some View {
         BridgeCard {
-            HStack(alignment: .center, spacing: 12) {
-                BridgeStatusHeader(
-                    title: "Scheduled Actions",
-                    message: overviewMessage,
-                    systemImage: "clock.arrow.circlepath",
-                    tint: .blue
-                )
-
-                Spacer(minLength: 12)
-
-                Button {
-                    scheduledActionManager.addSchedule()
-                } label: {
-                    Label("Add Action", systemImage: "plus.circle")
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 12) {
+                    overviewHeader
+                    Spacer(minLength: 12)
+                    addButton
                 }
-                .buttonStyle(.borderedProminent)
+                VStack(alignment: .leading, spacing: 12) {
+                    overviewHeader
+                    addButton
+                }
             }
+
+            Label("A scheduled action applies its changes automatically — there is no preview step. Run the same direction manually on the Sync screen first, so you know what it will do.", systemImage: "exclamationmark.circle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
+    private var overviewHeader: some View {
+        BridgeStatusHeader(
+            title: "Runs without asking",
+            message: overviewMessage,
+            systemImage: "clock.arrow.circlepath",
+            tint: .blue
+        )
+    }
+
+    private var addButton: some View {
+        Button(action: onAdd) {
+            Label("Add Action", systemImage: "plus.circle")
+        }
+        .buttonStyle(.borderedProminent)
+        .fixedSize()
+    }
+
     private var overviewMessage: String {
-        let enabledCount = scheduledActionManager.schedules.filter(\.isEnabled).count
-        let totalCount = scheduledActionManager.schedules.count
+        let enabledCount = schedules.filter(\.isEnabled).count
+        let totalCount = schedules.count
 
         if totalCount == 0 {
-            return "No actions are scheduled yet."
+            return "Nothing is scheduled yet. The app only syncs when you ask it to."
         }
-
         if enabledCount == totalCount {
-            return "\(totalCount) scheduled action\(totalCount == 1 ? "" : "s") enabled."
+            return "\(totalCount) scheduled action\(totalCount == 1 ? "" : "s") will run daily while the app is open."
         }
-
-        return "\(enabledCount) of \(totalCount) scheduled actions enabled."
+        return "\(enabledCount) of \(totalCount) scheduled actions will run daily while the app is open."
     }
 
     private func binding(for schedule: ScheduledAction) -> Binding<ScheduledAction> {
         Binding(
-            get: {
-                scheduledActionManager.schedules.first(where: { $0.id == schedule.id }) ?? schedule
-            },
-            set: { updatedSchedule in
-                scheduledActionManager.updateSchedule(updatedSchedule)
-            }
+            get: { schedules.first(where: { $0.id == schedule.id }) ?? schedule },
+            set: { onUpdate($0) }
         )
-    }
-
-    private func deleteSchedule(_ schedule: ScheduledAction) {
-        guard let index = scheduledActionManager.schedules.firstIndex(where: { $0.id == schedule.id }) else { return }
-        scheduledActionManager.deleteSchedules(at: IndexSet(integer: index))
-    }
-
-    private func operationTitle(_ operation: SyncOperation) -> String {
-        operation.displayTitle
-    }
-
-    private func operationDescription(_ operation: SyncOperation) -> String {
-        operation.description
     }
 }
 
 private struct ScheduledActionCard: View {
     @Binding var schedule: ScheduledAction
-    let operationTitle: (SyncOperation) -> String
-    let operationDescription: (SyncOperation) -> String
     let onDelete: () -> Void
 
-    private var selectedOperationTitle: String {
-        schedule.operation.map(operationTitle) ?? "Unavailable action"
-    }
-
-    private var selectedOperationDescription: String {
-        schedule.operation.map(operationDescription) ?? "Choose a valid action before this schedule can run."
-    }
+    private var operation: SyncOperation? { schedule.operation }
 
     var body: some View {
         BridgeCard {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Image(systemName: schedule.isEnabled ? "clock.badge.checkmark" : "clock.badge.xmark")
                     .font(.title3)
-                    .foregroundStyle(schedule.isEnabled ? .green : .secondary)
-                    .frame(width: 28)
+                    .foregroundStyle(schedule.isEnabled ? Color.green : Color.secondary)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedOperationTitle)
-                        .font(.headline)
-                    Text(scheduleSummary)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text(selectedOperationDescription)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text(operation?.displayTitle ?? "Action unavailable")
+                    .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Spacer(minLength: 12)
+                Spacer(minLength: 8)
 
                 Toggle("Enabled", isOn: $schedule.isEnabled)
                     .labelsHidden()
@@ -142,31 +141,50 @@ private struct ScheduledActionCard: View {
                 .buttonStyle(.borderless)
             }
 
+            if let operation {
+                BridgeDirectionBadge(direction: operation.direction)
+            }
+
+            Text(scheduleSummary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             Divider()
 
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
                 GridRow {
-                    Label("Time", systemImage: "clock")
+                    Label("Runs at", systemImage: "clock")
                         .foregroundStyle(.secondary)
-                    DatePicker("Time", selection: scheduledTimeBinding, displayedComponents: .hourAndMinute)
+                    DatePicker("Runs at", selection: scheduledTimeBinding, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                         .disabled(!schedule.isEnabled)
                 }
 
-                GridRow {
-                    Label("Action", systemImage: "bolt")
+                GridRow(alignment: .firstTextBaseline) {
+                    Label("Syncs", systemImage: "arrow.left.arrow.right")
                         .foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Picker("Action", selection: $schedule.operationRawValue) {
-                            ForEach(SyncOperation.allCases) { operation in
-                                Text(operationTitle(operation)).tag(operation.rawValue)
+                        .gridColumnAlignment(.leading)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Picker("Syncs", selection: $schedule.operationRawValue) {
+                            Section(SyncDirection.homeAssistantToAppleHome.label) {
+                                ForEach(SyncOperation.allCases.filter { $0.direction == .homeAssistantToAppleHome }) { operation in
+                                    Text(operation.shortTitle).tag(operation.rawValue)
+                                }
+                            }
+                            Section(SyncDirection.appleHomeToHomeAssistant.label) {
+                                ForEach(SyncOperation.allCases.filter { $0.direction == .appleHomeToHomeAssistant }) { operation in
+                                    Text(operation.shortTitle).tag(operation.rawValue)
+                                }
                             }
                         }
+                        .labelsHidden()
                         .disabled(!schedule.isEnabled)
 
-                        Text(selectedOperationDescription)
+                        Text(operation?.description ?? "Pick a direction before this action can run.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -175,36 +193,30 @@ private struct ScheduledActionCard: View {
     }
 
     private var scheduleSummary: String {
+        let destination = operation?.direction.destination.name ?? "the other side"
         if schedule.isEnabled {
-            return "Runs daily at \(timeText)."
+            return "Every day at \(timeText), changes are applied in \(destination)."
         }
-
-        return "Disabled. Last configured for \(timeText)."
+        return "Paused. It was set to run daily at \(timeText)."
     }
 
     private var timeText: String {
-        dateForScheduledAction(minutesAfterMidnight: schedule.timeMinutes)
+        date(forMinutesAfterMidnight: schedule.timeMinutes)
             .formatted(date: .omitted, time: .shortened)
     }
 
     private var scheduledTimeBinding: Binding<Date> {
         Binding(
-            get: {
-                dateForScheduledAction(minutesAfterMidnight: schedule.timeMinutes)
-            },
-            set: { newDate in
-                schedule.timeMinutes = minutesAfterMidnight(for: newDate)
-            }
+            get: { date(forMinutesAfterMidnight: schedule.timeMinutes) },
+            set: { schedule.timeMinutes = minutesAfterMidnight(for: $0) }
         )
     }
 
-    private func dateForScheduledAction(minutesAfterMidnight: Int) -> Date {
+    private func date(forMinutesAfterMidnight minutes: Int) -> Date {
         let calendar = Calendar.current
-        let hour = minutesAfterMidnight / 60
-        let minute = minutesAfterMidnight % 60
         var components = calendar.dateComponents([.year, .month, .day], from: Date())
-        components.hour = hour
-        components.minute = minute
+        components.hour = minutes / 60
+        components.minute = minutes % 60
         components.second = 0
         return calendar.date(from: components) ?? Date()
     }

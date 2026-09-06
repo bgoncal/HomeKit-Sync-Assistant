@@ -7,12 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B1000020 /* SnapshotSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* SnapshotSupport.swift */; };
+		B1000021 /* Fixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* Fixtures.swift */; };
+		B1000022 /* OnboardingSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* OnboardingSnapshotTests.swift */; };
+		B1000023 /* ScreenSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004 /* ScreenSnapshotTests.swift */; };
+		B1000024 /* ConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* ConfigurationTests.swift */; };
+		B1000030 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = B5000001 /* SnapshotTesting */; };
 		9AEAAAF53003F9B700CCABBB /* EndpointsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */; };
 		9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF63003FA3300CCABBB /* DevicesView.swift */; };
 		9AEAAAF93004074300CCABBB /* BridgeUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF83004074300CCABBB /* BridgeUI.swift */; };
 		9AEAAAFB300408F000CCABBB /* ScheduledActionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAFA300408F000CCABBB /* ScheduledActionManager.swift */; };
 		9AEAAAFD30040D0F00CCABBB /* ActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAFC30040D0F00CCABBB /* ActionsView.swift */; };
 		A1000001 /* HomeKitBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* HomeKitBridgeApp.swift */; };
+		A1000014 /* HomeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* HomeModels.swift */; };
 		A1000002 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* MainTabView.swift */; };
 		A1000003 /* HomeKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* HomeKitManager.swift */; };
 		A1000004 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004 /* HTTPServer.swift */; };
@@ -27,7 +34,31 @@
 		A1000013 /* HAWebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* HAWebSocketClient.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B3000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A8000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A5000001;
+			remoteInfo = HomeKitBridge;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		B3000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A5000001 /* HomeKitBridge */;
+			targetProxy = B3000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXFileReference section */
+		B2000001 /* SnapshotSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotSupport.swift; sourceTree = "<group>"; };
+		B2000002 /* Fixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fixtures.swift; sourceTree = "<group>"; };
+		B2000003 /* OnboardingSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSnapshotTests.swift; sourceTree = "<group>"; };
+		B2000004 /* ScreenSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenSnapshotTests.swift; sourceTree = "<group>"; };
+		B2000005 /* ConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationTests.swift; sourceTree = "<group>"; };
+		B2000010 /* HomeKitBridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HomeKitBridgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9AEAAAF33003F22300CCABBB /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsView.swift; sourceTree = "<group>"; };
 		9AEAAAF63003FA3300CCABBB /* DevicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicesView.swift; sourceTree = "<group>"; };
@@ -43,6 +74,7 @@
 		A2000005 /* HomeKitBridge.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HomeKitBridge.entitlements; sourceTree = "<group>"; };
 		A2000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000007 /* LogEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogEntry.swift; sourceTree = "<group>"; };
+		A2000017 /* HomeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeModels.swift; sourceTree = "<group>"; };
 		A2000008 /* LogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogStore.swift; sourceTree = "<group>"; };
 		A2000009 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		A2000010 /* HomeKitBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HomeKitBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -62,6 +94,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B6000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000030 /* SnapshotTesting in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -69,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				A4000002 /* HomeKitBridge */,
+				B4000001 /* HomeKitBridgeTests */,
 				A4000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				A2000010 /* HomeKitBridge.app */,
+				B2000010 /* HomeKitBridgeTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -100,6 +142,7 @@
 		A4000004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				A2000017 /* HomeModels.swift */,
 				A2000007 /* LogEntry.swift */,
 			);
 			path = Models;
@@ -135,6 +178,18 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		B4000001 /* HomeKitBridgeTests */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001 /* SnapshotSupport.swift */,
+				B2000002 /* Fixtures.swift */,
+				B2000003 /* OnboardingSnapshotTests.swift */,
+				B2000004 /* ScreenSnapshotTests.swift */,
+				B2000005 /* ConfigurationTests.swift */,
+			);
+			path = HomeKitBridgeTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -154,6 +209,26 @@
 			productReference = A2000010 /* HomeKitBridge.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B5000010 /* HomeKitBridgeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B7000001 /* Build configuration list for PBXNativeTarget "HomeKitBridgeTests" */;
+			buildPhases = (
+				B6000001 /* Sources */,
+				B6000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B3000002 /* PBXTargetDependency */,
+			);
+			name = HomeKitBridgeTests;
+			packageProductDependencies = (
+				B5000001 /* SnapshotTesting */,
+			);
+			productName = HomeKitBridgeTests;
+			productReference = B2000010 /* HomeKitBridgeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -161,6 +236,11 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
+				TargetAttributes = {
+					B5000010 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
 				LastSwiftUpdateCheck = 1540;
 				LastUpgradeCheck = 1540;
 			};
@@ -176,8 +256,12 @@
 			productRefGroup = A4000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				B5000020 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+			);
 			targets = (
 				A5000001 /* HomeKitBridge */,
+				B5000010 /* HomeKitBridgeTests */,
 			);
 		};
 /* End PBXProject section */
@@ -195,6 +279,7 @@
 				A1000004 /* HTTPServer.swift in Sources */,
 				9AEAAAF93004074300CCABBB /* BridgeUI.swift in Sources */,
 				A1000005 /* LogEntry.swift in Sources */,
+				A1000014 /* HomeModels.swift in Sources */,
 				A1000006 /* LogStore.swift in Sources */,
 				9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */,
 				A1000007 /* SyncEngine.swift in Sources */,
@@ -205,6 +290,18 @@
 				A1000011 /* LogsView.swift in Sources */,
 				A1000012 /* SettingsView.swift in Sources */,
 				A1000013 /* HAWebSocketClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000020 /* SnapshotSupport.swift in Sources */,
+				B1000021 /* Fixtures.swift in Sources */,
+				B1000022 /* OnboardingSnapshotTests.swift in Sources */,
+				B1000023 /* ScreenSnapshotTests.swift in Sources */,
+				B1000024 /* ConfigurationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -358,7 +455,81 @@
 			};
 			name = Release;
 		};
+		B9000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HomeKitBridge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HomeKitBridge";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SR9992X3G;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.panta.homekitsync.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos macosx";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,6";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B9000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HomeKitBridge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HomeKitBridge";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SR9992X3G;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.panta.homekitsync.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos macosx";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,6";
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B5000020 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 1.18.9;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B5000001 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5000020 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		A7000001 /* Build configuration list for PBXProject "HomeKitBridge" */ = {
@@ -375,6 +546,15 @@
 			buildConfigurations = (
 				A9000003 /* Debug */,
 				A9000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B7000001 /* Build configuration list for PBXNativeTarget "HomeKitBridgeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B9000001 /* Debug */,
+				B9000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

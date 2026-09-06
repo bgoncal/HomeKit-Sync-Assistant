@@ -113,7 +113,7 @@ final class HTTPServer: ObservableObject {
             switch (method, path) {
             case ("GET", "/api/homes"):
                 let homes = homeKit.homes.map { [
-                    "id": $0.uniqueIdentifier.uuidString,
+                    "id": $0.id,
                     "name": $0.name,
                     "roomCount": $0.rooms.count,
                     "accessoryCount": $0.accessories.count
@@ -122,37 +122,25 @@ final class HTTPServer: ObservableObject {
 
             case ("GET", let p) where p.hasPrefix("/api/homes/") && p.hasSuffix("/accessories/serials"):
                 let homeId = extractId(from: p, prefix: "/api/homes/", suffix: "/accessories/serials")
-                guard let accessories = await homeKit.accessoriesWithSerial(forHomeId: homeId) else {
+                guard let accessories = await homeKit.accessoriesWithSerials(forHomeId: homeId) else {
                     throw BridgeError.notFound("Home not found")
                 }
-                return httpResponse(200, body: ["accessories": accessories])
+                return httpResponse(200, body: ["accessories": accessories.map(Self.payload(for:))])
 
             case ("GET", let p) where p.hasPrefix("/api/homes/") && p.hasSuffix("/accessories"):
                 let homeId = extractId(from: p, prefix: "/api/homes/", suffix: "/accessories")
-                guard let home = homeKit.home(byId: homeId) else {
+                guard let accessories = await homeKit.accessoriesWithSerials(forHomeId: homeId) else {
                     throw BridgeError.notFound("Home not found")
                 }
-                var accessories: [[String: Any]] = []
-                for a in home.accessories {
-                    let serial = await homeKit.readSerialNumber(for: a)
-                    accessories.append([
-                        "id": a.uniqueIdentifier.uuidString,
-                        "name": a.name,
-                        "room": a.room?.name ?? "Default Room",
-                        "manufacturer": a.manufacturer,
-                        "model": a.model,
-                        "serialNumber": serial
-                    ])
-                }
-                return httpResponse(200, body: ["accessories": accessories])
+                return httpResponse(200, body: ["accessories": accessories.map(Self.payload(for:))])
 
             case ("GET", let p) where p.hasPrefix("/api/accessories/") && p.hasSuffix("/serial"):
                 let id = extractId(from: p, prefix: "/api/accessories/", suffix: "/serial")
-                guard let accessory = homeKit.accessory(byId: id) else {
+                guard homeKit.accessory(byId: id) != nil else {
                     throw BridgeError.notFound("Accessory not found")
                 }
-                let serial = await homeKit.readSerialNumber(for: accessory)
-                return httpResponse(200, body: ["id": id, "serialNumber": serial])
+                let serial = await homeKit.refreshSerialNumber(accessoryId: id)
+                return httpResponse(200, body: ["id": id, "serialNumber": serial ?? ""])
 
             case ("POST", let p) where p.hasPrefix("/api/accessories/") && p.hasSuffix("/move"):
                 let id = extractId(from: p, prefix: "/api/accessories/", suffix: "/move")
@@ -183,6 +171,17 @@ final class HTTPServer: ObservableObject {
         } catch {
             return httpResponse(500, body: ["error": error.localizedDescription])
         }
+    }
+
+    private static func payload(for accessory: AccessorySummary) -> [String: Any] {
+        [
+            "id": accessory.id,
+            "name": accessory.name,
+            "room": accessory.roomName,
+            "manufacturer": accessory.manufacturer ?? "",
+            "model": accessory.model ?? "",
+            "serialNumber": accessory.serialNumber ?? ""
+        ]
     }
 
     private func extractId(from path: String, prefix: String, suffix: String) -> String {

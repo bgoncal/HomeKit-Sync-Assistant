@@ -13,6 +13,22 @@ enum LogCategory: String, Codable, CaseIterable {
         case .error: return .red
         }
     }
+
+    var title: String {
+        switch self {
+        case .sync: return "Syncs"
+        case .server: return "Local API"
+        case .error: return "Problems"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .sync: return "arrow.triangle.2.circlepath"
+        case .server: return "point.3.connected.trianglepath.dotted"
+        case .error: return "exclamationmark.triangle.fill"
+        }
+    }
 }
 
 struct LogEntry: Identifiable, Codable {

@@ -22,7 +22,7 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
     }
 
     var operation: SyncOperation? {
-        SyncOperation(rawValue: operationRawValue)
+        SyncOperation.operation(forStoredRawValue: operationRawValue)
     }
 }
 
@@ -127,7 +127,7 @@ final class ScheduledActionManager: ObservableObject {
         }
 
         markSchedule(schedule.id, lastRunDay: todayKey)
-        logStore.add(category: .sync, message: "Scheduled action started", details: operation.rawValue)
+        logStore.add(category: .sync, message: "Scheduled action started", details: operation.displayTitle)
 
         do {
             let result = try await syncEngine.dryRun(operation)
@@ -156,7 +156,21 @@ final class ScheduledActionManager: ObservableObject {
             return
         }
 
-        schedules = decoded
+        // Operations used to be stored under their display strings; rewrite them to
+        // the stable identifiers so pickers and lookups keep matching.
+        schedules = decoded.map { schedule in
+            guard let operation = SyncOperation.operation(forStoredRawValue: schedule.operationRawValue),
+                  operation.rawValue != schedule.operationRawValue else {
+                return schedule
+            }
+            var normalized = schedule
+            normalized.operationRawValue = operation.rawValue
+            return normalized
+        }
+
+        if schedules != decoded {
+            saveSchedules()
+        }
     }
 
     private func saveSchedules() {
@@ -173,7 +187,10 @@ final class ScheduledActionManager: ObservableObject {
         guard defaults.object(forKey: DefaultsKey.legacyIsEnabled) != nil else { return }
 
         let timeMinutes = defaults.object(forKey: DefaultsKey.legacyTimeMinutes) as? Int ?? 8 * 60
-        let operationRawValue = defaults.string(forKey: DefaultsKey.legacyOperation) ?? SyncOperation.devicePlacementHAToHome.rawValue
+        let storedOperation = defaults.string(forKey: DefaultsKey.legacyOperation)
+        let operationRawValue = storedOperation
+            .flatMap(SyncOperation.operation(forStoredRawValue:))?.rawValue
+            ?? SyncOperation.devicePlacementHAToHome.rawValue
         let schedule = ScheduledAction(
             isEnabled: defaults.bool(forKey: DefaultsKey.legacyIsEnabled),
             timeMinutes: timeMinutes,

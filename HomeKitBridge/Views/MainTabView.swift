@@ -1,12 +1,6 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @EnvironmentObject private var homeKitManager: HomeKitManager
-    @EnvironmentObject private var syncEngine: SyncEngine
-    @EnvironmentObject private var logStore: LogStore
-    @EnvironmentObject private var wsClient: HAWebSocketClient
-    @EnvironmentObject private var server: HTTPServer
-
     #if os(macOS) || targetEnvironment(macCatalyst)
     @State private var selectedSection: SidebarSection? = .dashboard
     @State private var isActivityPresented = true
@@ -30,6 +24,7 @@ struct MainTabView: View {
                     } label: {
                         Label("Activity", systemImage: "clock")
                     }
+                    .help("Show what the bridge has done")
                 }
         }
         .inspector(isPresented: $isActivityPresented) {

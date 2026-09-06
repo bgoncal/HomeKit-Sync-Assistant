@@ -4,35 +4,75 @@ struct LogsView: View {
     @EnvironmentObject private var logStore: LogStore
 
     @State private var search = ""
-    @State private var selectedCategory: String = "all"
+    @State private var selectedCategory: LogFilter = .all
+
+    var body: some View {
+        LogsContent(
+            entries: logStore.entries,
+            search: $search,
+            selectedCategory: $selectedCategory,
+            onClear: { logStore.clear() }
+        )
+    }
+}
+
+enum LogFilter: Hashable {
+    case all
+    case category(LogCategory)
+
+    var title: String {
+        switch self {
+        case .all: return "All"
+        case .category(let category): return category.title
+        }
+    }
+
+    static var allCases: [LogFilter] {
+        [.all] + LogCategory.allCases.map(LogFilter.category)
+    }
+}
+
+/// A record of everything the bridge has done.
+struct LogsContent: View {
+    let entries: [LogEntry]
+    @Binding var search: String
+    @Binding var selectedCategory: LogFilter
+    var onClear: () -> Void = {}
 
     private var filtered: [LogEntry] {
-        logStore.entries.filter { entry in
-            let categoryMatch = selectedCategory == "all" || entry.category.rawValue == selectedCategory
-            let searchMatch = search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || entry.message.localizedCaseInsensitiveContains(search)
-                || (entry.details?.localizedCaseInsensitiveContains(search) ?? false)
+        entries.filter { entry in
+            let categoryMatch: Bool
+            switch selectedCategory {
+            case .all: categoryMatch = true
+            case .category(let category): categoryMatch = entry.category == category
+            }
+
+            let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+            let searchMatch = query.isEmpty
+                || entry.message.localizedCaseInsensitiveContains(query)
+                || (entry.details?.localizedCaseInsensitiveContains(query) ?? false)
+
             return categoryMatch && searchMatch
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Activity")
                         .font(.largeTitle.bold())
-                    Text("Recent sync, server, and connection events.")
+                    Text("Every change the bridge applied, plus connection and local API events.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
-                Button {
-                    logStore.clear()
-                } label: {
+                Spacer(minLength: 12)
+                Button(action: onClear) {
                     Label("Clear", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
+                .disabled(entries.isEmpty)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -40,34 +80,44 @@ struct LogsView: View {
                     .textFieldStyle(.roundedBorder)
 
                 Picker("Category", selection: $selectedCategory) {
-                    Text("All").tag("all")
-                    ForEach(LogCategory.allCases, id: \.rawValue) { category in
-                        Text(categoryTitle(category)).tag(category.rawValue)
+                    ForEach(LogFilter.allCases, id: \.self) { filter in
+                        Text(filter.title).tag(filter)
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .frame(maxWidth: 360)
             }
 
             if filtered.isEmpty {
                 Spacer()
-                ContentUnavailableView("No Activity", systemImage: "clock", description: Text("Matching events will appear here as the bridge runs."))
+                ContentUnavailableView(
+                    entries.isEmpty ? "Nothing has happened yet" : "No matching activity",
+                    systemImage: "clock",
+                    description: Text(entries.isEmpty
+                        ? "Applied changes, connection problems, and local API events show up here."
+                        : "Try a different search or category.")
+                )
                 Spacer()
             } else {
                 List(filtered) { entry in
                     logRow(entry)
                         .padding(.vertical, 2)
                 }
+                .listStyle(.plain)
             }
         }
         .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Activity")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func logRow(_ entry: LogEntry) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Label(categoryTitle(entry.category), systemImage: icon(for: entry.category))
+                Label(entry.category.title, systemImage: entry.category.symbolName)
                     .font(.caption.bold())
                     .foregroundStyle(entry.category.color)
                 Spacer()
@@ -78,6 +128,7 @@ struct LogsView: View {
 
             Text(entry.message)
                 .font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let details = entry.details, !details.isEmpty {
                 DisclosureGroup("Details") {
@@ -90,22 +141,6 @@ struct LogsView: View {
                 }
                 .font(.callout)
             }
-        }
-    }
-
-    private func categoryTitle(_ category: LogCategory) -> String {
-        switch category {
-        case .sync: return "Sync"
-        case .server: return "Server"
-        case .error: return "Errors"
-        }
-    }
-
-    private func icon(for category: LogCategory) -> String {
-        switch category {
-        case .sync: return "arrow.triangle.2.circlepath"
-        case .server: return "server.rack"
-        case .error: return "exclamationmark.triangle.fill"
         }
     }
 }

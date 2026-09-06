@@ -3,6 +3,72 @@ import Foundation
 enum HAConfiguration {
     static let defaultURL = ""
     static let defaultToken = ""
+
+    /// Trims a typed address and drops a trailing slash, without changing the scheme.
+    static func normalizedURL(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    /// The WebSocket address the bridge will actually open, or `nil` when the
+    /// typed address cannot be turned into one.
+    static func webSocketURL(for raw: String) -> URL? {
+        let base = normalizedURL(raw)
+        guard !base.isEmpty else { return nil }
+
+        let address: String
+        if base.hasPrefix("https://") {
+            address = "wss://" + base.dropFirst("https://".count) + "/api/websocket"
+        } else if base.hasPrefix("http://") {
+            address = "ws://" + base.dropFirst("http://".count) + "/api/websocket"
+        } else if base.hasPrefix("wss://") {
+            address = base.hasSuffix("/api/websocket") ? base : base + "/api/websocket"
+        } else if base.hasPrefix("ws://") {
+            address = base.hasSuffix("/api/websocket") ? base : base + "/api/websocket"
+        } else {
+            address = "ws://" + base + "/api/websocket"
+        }
+
+        return URL(string: address)
+    }
+
+    /// Plain-language problem with a typed address, or `nil` when it looks usable.
+    static func urlProblem(_ raw: String) -> String? {
+        let base = normalizedURL(raw)
+
+        if base.isEmpty {
+            return "Enter the address you use to open Home Assistant, for example http://homeassistant.local:8123"
+        }
+        if base.contains(" ") {
+            return "The address cannot contain spaces."
+        }
+        if base.hasSuffix("/api/websocket") || base.contains("/lovelace") || base.contains("/config") {
+            return "Use only the base address, without a page path — for example http://homeassistant.local:8123"
+        }
+        guard let url = webSocketURL(for: base), url.host?.isEmpty == false else {
+            return "That does not look like a valid address. Try http://homeassistant.local:8123"
+        }
+        return nil
+    }
+
+    /// Plain-language problem with a typed token, or `nil` when it looks usable.
+    static func tokenProblem(_ raw: String) -> String? {
+        let token = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if token.isEmpty {
+            return "Paste a long-lived access token from your Home Assistant profile page."
+        }
+        if token.lowercased().hasPrefix("bearer ") {
+            return "Paste only the token itself, without the word “Bearer”."
+        }
+        if token.contains(" ") || token.contains("\n") {
+            return "The token cannot contain spaces or line breaks."
+        }
+        if token.count < 32 {
+            return "That looks too short for a long-lived access token."
+        }
+        return nil
+    }
 }
 
 /// Home Assistant WebSocket API client.
@@ -24,25 +90,21 @@ final class HAWebSocketClient: ObservableObject {
         disconnect()
         connectionError = nil
 
-        let base = haURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let base = HAConfiguration.normalizedURL(haURL)
         let token = haToken.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !base.isEmpty, !token.isEmpty else {
-            connectionError = "URL or token is empty"
+        guard !base.isEmpty else {
+            connectionError = "No Home Assistant address is set. Add one in Settings."
             return false
         }
 
-        let wsURL: String
-        if base.hasPrefix("https://") {
-            wsURL = "wss://" + base.dropFirst(8) + "/api/websocket"
-        } else if base.hasPrefix("http://") {
-            wsURL = "ws://" + base.dropFirst(7) + "/api/websocket"
-        } else {
-            wsURL = "ws://" + base + "/api/websocket"
+        guard !token.isEmpty else {
+            connectionError = "No Home Assistant access token is set. Add one in Settings."
+            return false
         }
 
-        guard let url = URL(string: wsURL) else {
-            connectionError = "Invalid URL: \(wsURL)"
+        guard let url = HAConfiguration.webSocketURL(for: base) else {
+            connectionError = "“\(base)” is not a valid Home Assistant address."
             return false
         }
 
@@ -56,7 +118,7 @@ final class HAWebSocketClient: ObservableObject {
         guard let authRequired = await receiveMessage(),
               let type = (authRequired as? [String: Any])?["type"] as? String,
               type == "auth_required" else {
-            connectionError = "Did not receive auth_required"
+            connectionError = "Connected to \(url.host ?? base), but it did not answer like a Home Assistant server."
             disconnect()
             return false
         }
@@ -81,7 +143,7 @@ final class HAWebSocketClient: ObservableObject {
         // Wait for auth_ok or auth_invalid
         guard let authResult = await receiveMessage(),
               let resultType = (authResult as? [String: Any])?["type"] as? String else {
-            connectionError = "No auth response"
+            connectionError = "Home Assistant did not answer the sign-in request."
             disconnect()
             return false
         }
@@ -93,7 +155,7 @@ final class HAWebSocketClient: ObservableObject {
             return true
         } else {
             let msg = (authResult as? [String: Any])?["message"] as? String ?? "Unknown error"
-            connectionError = "Auth failed: \(msg)"
+            connectionError = "Home Assistant rejected the access token: \(msg)"
             disconnect()
             return false
         }
@@ -252,7 +314,7 @@ final class HAWebSocketClient: ObservableObject {
                 } catch {
                     await MainActor.run {
                         self.isConnected = false
-                        self.connectionError = "Connection lost: \(error.localizedDescription)"
+                        self.connectionError = "Lost the connection to Home Assistant: \(error.localizedDescription)"
                     }
                     // Notify all pending handlers
                     await MainActor.run {

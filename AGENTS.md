@@ -20,17 +20,21 @@ tools. Single app target, no external package dependencies.
 ```
 HomeKitBridge/
   HomeKitBridgeApp.swift     @main App — owns all services, injects via environment
-  Models/                    Plain Codable/Identifiable value types (LogEntry, …)
+  Models/                    Plain Codable/Identifiable value types
+    HomeModels.swift           HomeSummary/RoomSummary/AccessorySummary/HomeAssistantMatch
+    LogEntry.swift
   Services/                  @MainActor ObservableObject business logic
-    HomeKitManager.swift       HomeKit access, homes/rooms/accessories
-    HAWebSocketClient.swift     Home Assistant WebSocket client
-    SyncEngine.swift            Cross-platform sync logic
+    HomeKitManager.swift       HomeKit access; publishes HomeSummary values
+    HAWebSocketClient.swift     Home Assistant WebSocket client + HAConfiguration
+    SyncEngine.swift            Sync operations, directions, dry runs
     HTTPServer.swift            Local HTTP API (Network framework) + BridgeError
     LogStore.swift              In-app log buffer
     ScheduledActionManager.swift
   Views/                     SwiftUI views
     BridgeUI.swift             Shared UI components (BridgePage, BridgeCard, …)
     MainTabView.swift, *View.swift
+HomeKitBridgeTests/          Snapshot + logic tests (see "Tests")
+  __Snapshots__/             Reference PNGs, one per screen per platform
 ```
 
 ## Architecture rules
@@ -78,6 +82,14 @@ HomeKitBridge/
 
 ## SwiftUI conventions
 
+- **Every screen is split in two.** A connected view (`DashboardView`) reads the
+  services from the environment and passes plain values into a content view
+  (`DashboardContent`) that owns the layout. Content views take values, bindings,
+  and closures only — never a service, an `HMHome`, or a `[String: Any]` payload.
+  That split is what makes every screen snapshot-testable; keep it when adding one.
+- **Name the direction in the UI.** Anything that mentions a sync shows
+  `BridgeDirectionBadge` and says which side is written. Copy is plain language:
+  "Apple Home", "Home Assistant", never "HA" or "HK".
 - **Views are small `struct`s.** Break a `body` into `private var someCard: some View`
   computed properties or `private func row(...) -> some View` helpers (see
   `DashboardView`) instead of one giant view tree.
@@ -113,8 +125,48 @@ HomeKitBridge/
 Use the **XcodeBuildMCP** tools rather than raw `xcodebuild` when available.
 Before the first build/run in a session, call `session_show_defaults` to confirm the
 project, scheme, and simulator; then `build_run_sim`. Use `discover_projs` only if
-defaults are missing. There is no test target yet — if you add tests, wire up an
-XCTest target and prefer testing service logic (which is already DI-friendly).
+defaults are missing.
+
+## Tests
+
+`HomeKitBridgeTests` is a **non-hosted** unit-test bundle. The app's sources are
+compiled into it directly (every file except `HomeKitBridgeApp.swift`), so there is
+no `@testable import` and no app launch — which also means HomeKit is never touched
+during a test run. Its only dependency is
+[swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing).
+
+It holds:
+
+- **Snapshot tests for every screen**, rendered from `Fixtures` through the content
+  views. New screen or new state ⇒ new snapshot test.
+- **Logic tests** for credential validation and sync-operation copy/migration.
+
+Run them on both platforms — references are stored per platform
+(`…-iPhone.png` / `…-mac.png`) in `HomeKitBridgeTests/__Snapshots__/`:
+
+```sh
+Scripts/snapshot-tests.sh iphone            # iOS Simulator, default "iPhone 17"
+Scripts/snapshot-tests.sh mac               # Mac Catalyst
+```
+
+Use the script rather than plain `xcodebuild test` for **mac**: a Mac Catalyst app is
+always sandboxed and cannot read or write the reference images in the repository, so
+the script copies them into the app container around the run. iPhone runs are a plain
+`xcodebuild test` under the hood.
+
+To re-record after an intentional UI change, delete the affected PNGs and run again
+(missing references are recorded automatically, and the run fails once), then look at
+the new images before committing them. `SnapshotTestCase` pins the time zone, the
+locale, animations, the display scale, and the light appearance; keep new fixtures
+free of `Date()`, random IDs, and anything else that changes between runs.
+
+Two known, harmless differences in the Mac references: menu `Picker`s render as empty
+popup buttons (they draw correctly in the running app — verified on Catalyst), and
+`.regularMaterial` renders flat. Neither is an app bug; don't "fix" the UI because of
+them.
+
+The dependency is pinned to `swift-snapshot-testing` 1.18.x on purpose: 1.19 fails to
+compile for Mac Catalyst (`UIImage` does not conform to `AttachableAsImage`).
 
 ## When making changes
 
@@ -123,4 +175,5 @@ XCTest target and prefer testing service logic (which is already DI-friendly).
    payloads into views — expose typed/derived state instead.
 3. Don't add third-party dependencies without asking.
 4. Reuse `BridgeUI` components and existing UserDefaults keys.
-5. After non-trivial changes, build for the simulator to confirm it compiles.
+5. After non-trivial changes, build for the simulator to confirm it compiles, and
+   run the tests for both iPhone and Mac Catalyst.

@@ -5,7 +5,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "GET",
             path: "/api/homes",
-            summary: "Lists every Apple Home available to the bridge.",
+            summary: "Lists every Apple Home this device can see.",
             requestBody: nil,
             responseBody: """
             {
@@ -23,7 +23,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "GET",
             path: "/api/homes/{homeId}/accessories",
-            summary: "Lists accessories in a Home, including room, manufacturer, model, and serial number.",
+            summary: "Lists the devices in one home, with the room they sit in and the serial number used to pair them with Home Assistant.",
             requestBody: nil,
             responseBody: """
             {
@@ -43,7 +43,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "GET",
             path: "/api/homes/{homeId}/accessories/serials",
-            summary: "Lists accessories in a Home with serial numbers for Home Assistant entity matching.",
+            summary: "Same list, kept for older scripts that call the /serials path.",
             requestBody: nil,
             responseBody: """
             {
@@ -63,7 +63,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "GET",
             path: "/api/accessories/{accessoryId}/serial",
-            summary: "Reads the serial number from one HomeKit accessory.",
+            summary: "Reads one device's serial number, which is its Home Assistant entity ID when it is bridged.",
             requestBody: nil,
             responseBody: """
             {
@@ -75,7 +75,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "POST",
             path: "/api/accessories/{accessoryId}/move",
-            summary: "Moves one HomeKit accessory to the supplied HomeKit room.",
+            summary: "Moves one device into another Apple Home room.",
             requestBody: """
             {
               "roomId": "ROOM_UUID"
@@ -90,7 +90,7 @@ struct EndpointsView: View {
         EndpointInfo(
             method: "POST",
             path: "/api/accessories/{accessoryId}/rename",
-            summary: "Renames one HomeKit accessory.",
+            summary: "Renames one device in Apple Home.",
             requestBody: """
             {
               "name": "New Accessory Name"
@@ -107,15 +107,20 @@ struct EndpointsView: View {
     var body: some View {
         BridgePage(
             title: "Local API",
-            subtitle: "Reference for automations and local integrations. Request and response examples are tucked away until needed."
+            subtitle: "Let your own scripts read and change Apple Home over your local network."
         ) {
             BridgeCard {
                 BridgeStatusHeader(
-                    title: "Developer Reference",
-                    message: "Use these endpoints from trusted tools on your local network.",
+                    title: "Reads and writes Apple Home only",
+                    message: "These endpoints never touch Home Assistant. They are unauthenticated, so only use them from tools you trust on your own network.",
                     systemImage: "point.3.connected.trianglepath.dotted",
                     tint: .blue
                 )
+
+                Text("Send requests to this device on the port shown in Settings, for example http://<this-device>:8400/api/homes")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
 
             LazyVStack(spacing: 12) {
