@@ -13,6 +13,10 @@ final class ScreenshotCaptureTests: SnapshotTestCase {
     private let size = CGSize(width: 430, height: 932)
     private let scale: CGFloat = 3
 
+    /// 12.9" iPad portrait — 1024 × 1366 at 2x, which is the 2048 × 2732 the store wants.
+    private let padSize = CGSize(width: 1024, height: 1366)
+    private let padScale: CGFloat = 2
+
     func testCaptureHomeScreen() throws {
         try captureIsEnabled()
 
@@ -81,6 +85,84 @@ final class ScreenshotCaptureTests: SnapshotTestCase {
         )
     }
 
+    // MARK: - iPad
+
+    func testCaptureHomeScreenOnPad() throws {
+        try captureIsEnabled()
+
+        try capture(
+            NavigationStack {
+                HomeContent(
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    isHomeKitAuthorized: true,
+                    connections: Fixtures.connections,
+                    isServerRunning: true,
+                    serverPort: 8400,
+                    supportsScheduledActions: false,
+                    tipProduct: Fixtures.tipProduct
+                )
+            },
+            named: "pad-01-home",
+            size: padSize,
+            scale: padScale
+        )
+    }
+
+    func testCaptureSyncScreenOnPad() throws {
+        try captureIsEnabled()
+
+        try capture(
+            NavigationStack {
+                SyncContent(
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    servers: [Fixtures.houseServer, Fixtures.beachServer],
+                    homeId: .constant(Fixtures.home.id),
+                    serverId: .constant(Fixtures.houseServer.id),
+                    direction: .constant(.homeAssistantToAppleHome),
+                    subject: .constant(.placement),
+                    dryRunResult: Fixtures.placementPreview,
+                    progress: nil,
+                    errorMessage: nil,
+                    isWorking: false
+                )
+            },
+            named: "pad-02-sync",
+            size: padSize,
+            scale: padScale
+        )
+    }
+
+    func testCaptureEntitiesScreenOnPad() throws {
+        try captureIsEnabled()
+
+        try capture(
+            NavigationStack {
+                EntitiesContent(
+                    serverName: Fixtures.houseServer.name,
+                    serverId: Fixtures.houseServer.id,
+                    areas: Fixtures.entityAreas,
+                    search: .constant("")
+                )
+            },
+            named: "pad-03-entities",
+            size: padSize,
+            scale: padScale
+        )
+    }
+
+    func testCaptureDevicesScreenOnPad() throws {
+        try captureIsEnabled()
+
+        try capture(
+            NavigationStack {
+                HomeDevicesContent(home: Fixtures.home, search: .constant(""))
+            },
+            named: "pad-04-devices",
+            size: padSize,
+            scale: padScale
+        )
+    }
+
     // MARK: - Plumbing
 
     private func captureIsEnabled() throws {
@@ -89,7 +171,14 @@ final class ScreenshotCaptureTests: SnapshotTestCase {
         #endif
     }
 
-    private func capture(_ view: some View, named name: String) throws {
+    private func capture(
+        _ view: some View,
+        named name: String,
+        size: CGSize? = nil,
+        scale: CGFloat? = nil
+    ) throws {
+        let size = size ?? self.size
+        let scale = scale ?? self.scale
         let controller = UIHostingController(
             rootView: view
                 .environment(\.locale, Locale(identifier: "en_US"))

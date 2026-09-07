@@ -20,7 +20,7 @@ which is why the listing says "your home app" rather than naming it.
 | Content rights | Does not use third-party content |
 | Price | Free |
 | Availability | 175 territories |
-| Screenshots | Four 6.7" iPhone shots, delivery COMPLETE |
+| Screenshots | Four 6.7" iPhone (1290×2796) and four 12.9" iPad (2048×2732), all COMPLETE |
 | In-app purchase | `com.hasync.tip`, consumable — `READY_TO_SUBMIT`: name, description, review note, price (0.99) and review screenshot |
 | Privacy policy | https://docs.google.com/document/d/1-p0J8RKmV6EXyJNK6Bo0dR4PyoYJMj2oRcBkc8QXY5M/preview |
 
@@ -57,6 +57,11 @@ account. Edit the markdown first, then repeat the paste, so the two do not drift
 
 ## Regenerating the screenshots
 
-`Scripts/capture-screenshots.sh` renders the real screens with the test fixtures at 1290×2796
-into `../Screenshots/`, then `asc_write.upload_screenshots(..., 'IOS', 'APP_IPHONE_67', files,
-replace=True)` uploads them in order.
+`Scripts/capture-screenshots.sh` renders the real screens with the test fixtures into
+`../Screenshots/`: phone shots at 1290×2796 (`01-`…`04-`) and iPad at 2048×2732 (`pad-01-`…).
+Upload each set to its own display type:
+
+```python
+asc_write.upload_screenshots(T, app, 'IOS', 'APP_IPHONE_67', phone_files, replace=True)
+asc_write.upload_screenshots(T, app, 'IOS', 'APP_IPAD_PRO_3GEN_129', pad_files, replace=True)
+```
