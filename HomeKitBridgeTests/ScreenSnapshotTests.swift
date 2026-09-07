@@ -3,75 +3,98 @@ import XCTest
 @testable import HomeKitBridge
 
 @MainActor
-final class DashboardSnapshotTests: SnapshotTestCase {
-    func testTwoHomesAndTwoServers() {
+final class HomeSnapshotTests: SnapshotTestCase {
+    func testBothSidesReady() {
         assertScreen(
             NavigationStack {
-                DashboardContent(
-                    isHomeKitAuthorized: true,
+                HomeContent(
                     homes: [Fixtures.home, Fixtures.secondHome],
+                    isHomeKitAuthorized: true,
                     connections: Fixtures.connections,
                     isServerRunning: true,
-                    serverPort: 8400
+                    serverPort: 8400,
+                    scheduleCount: 2,
+                    supportsScheduledActions: false,
+                    tipProduct: Fixtures.tipProduct
                 )
             },
-            named: "dashboard-connected"
+            named: "home"
         )
     }
 
-    func testServerFailedAndHomeNotLinked() {
+    func testNothingSetUpYet() {
         assertScreen(
             NavigationStack {
-                DashboardContent(
-                    isHomeKitAuthorized: true,
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    connections: Fixtures.connectionsWithProblem,
-                    unlinkedHomes: [Fixtures.secondHome],
-                    isServerRunning: false,
-                    serverPort: 8400
-                )
-            },
-            named: "dashboard-home-assistant-disconnected"
-        )
-    }
-
-    func testWaitingForHomeKitAccess() {
-        assertScreen(
-            NavigationStack {
-                DashboardContent(
-                    isHomeKitAuthorized: false,
+                HomeContent(
                     homes: [],
+                    isHomeKitAuthorized: false,
                     connections: [],
                     isServerRunning: false,
-                    serverPort: 8400
+                    serverPort: 8400,
+                    supportsScheduledActions: false,
+                    tipProduct: Fixtures.tipProduct
                 )
             },
-            named: "dashboard-no-access"
+            named: "home-empty"
+        )
+    }
+
+    /// The Mac also offers scheduled syncs from here.
+    func testOnMac() {
+        assertScreen(
+            NavigationStack {
+                HomeContent(
+                    homes: [Fixtures.home],
+                    isHomeKitAuthorized: true,
+                    connections: Fixtures.connectionsWithProblem,
+                    isServerRunning: false,
+                    serverPort: 8400,
+                    scheduleCount: 1,
+                    supportsScheduledActions: true,
+                    tipProduct: Fixtures.tipProduct,
+                    tipState: .thanks
+                )
+            },
+            named: "home-mac"
+        )
+    }
+
+    func testTheAppleHomeList() {
+        assertScreen(
+            NavigationStack {
+                AppleHomesContent(homes: [Fixtures.home, Fixtures.secondHome])
+            },
+            named: "apple-homes"
+        )
+    }
+
+    func testTheHomeAssistantList() {
+        assertScreen(
+            NavigationStack {
+                ServersContent(connections: Fixtures.connectionsWithProblem)
+            },
+            named: "home-assistants"
         )
     }
 }
 
 @MainActor
 final class DevicesSnapshotTests: SnapshotTestCase {
-    func testDeviceList() {
+    func testDevicesGroupedByRoom() {
         assertScreen(
             NavigationStack {
-                DevicesContent(
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    selectedHomeId: Fixtures.home.id,
-                    search: .constant("")
-                )
+                HomeDevicesContent(home: Fixtures.home, search: .constant(""))
             },
-            named: "devices-list"
+            named: "home-devices"
         )
     }
 
-    func testEmptyDeviceList() {
+    func testNoDevices() {
         assertScreen(
             NavigationStack {
-                DevicesContent(homes: [], selectedHomeId: nil, search: .constant(""))
+                HomeDevicesContent(home: Fixtures.secondHome, search: .constant(""))
             },
-            named: "devices-empty"
+            named: "home-devices-empty"
         )
     }
 
@@ -101,132 +124,133 @@ final class DevicesSnapshotTests: SnapshotTestCase {
         )
     }
 
-    func testDeviceLookupFailed() {
+    func testDeviceWithoutAServerToAsk() {
         assertScreen(
             NavigationStack {
-                DeviceDetailContent(
-                    accessory: Fixtures.hallwaySensor,
-                    matchState: .failed("Not connected to House"),
-                    serverName: Fixtures.houseServer.name
-                )
+                DeviceDetailContent(accessory: Fixtures.hallwaySensor, matchState: .noServer)
             },
-            named: "device-detail-failed"
+            named: "device-detail-no-server"
         )
     }
 
     func testDeviceServices() {
         assertScreen(
-            NavigationStack {
-                DeviceServicesContent(accessory: Fixtures.kitchenLight)
-            },
+            NavigationStack { DeviceServicesContent(accessory: Fixtures.kitchenLight) },
             named: "device-services"
         )
     }
 
     func testHomeAssistantRawData() {
         assertScreen(
-            NavigationStack {
-                HomeAssistantDataContent(match: Fixtures.homeAssistantMatch)
-            },
+            NavigationStack { HomeAssistantDataContent(match: Fixtures.homeAssistantMatch) },
             named: "device-raw-data"
         )
     }
 }
 
 @MainActor
-final class SyncSnapshotTests: SnapshotTestCase {
-    func testNoPreviewYet() {
+final class EntitiesSnapshotTests: SnapshotTestCase {
+    func testEntitiesGroupedByArea() {
         assertScreen(
             NavigationStack {
-                SyncContent(
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    selectedHomeId: Fixtures.home.id,
+                EntitiesContent(
                     serverName: Fixtures.houseServer.name,
-                    serverState: .connected,
-                    operation: .constant(.devicePlacementHAToHome),
-                    dryRunResult: nil,
-                    progress: nil,
-                    errorMessage: nil,
-                    isWorking: false
+                    serverId: Fixtures.houseServer.id,
+                    areas: Fixtures.entityAreas,
+                    search: .constant("")
                 )
             },
-            named: "sync-no-preview"
+            named: "entities"
+        )
+    }
+
+    func testSearchingEntities() {
+        assertScreen(
+            NavigationStack {
+                EntitiesContent(
+                    serverName: Fixtures.houseServer.name,
+                    serverId: Fixtures.houseServer.id,
+                    areas: Fixtures.entityAreas,
+                    search: .constant("light.")
+                )
+            },
+            named: "entities-search"
+        )
+    }
+
+    func testEntitiesCouldNotBeRead() {
+        assertScreen(
+            NavigationStack {
+                EntitiesContent(
+                    serverName: Fixtures.houseServer.name,
+                    serverId: Fixtures.houseServer.id,
+                    areas: [],
+                    state: .failed("Home Assistant rejected the access token: Invalid access token"),
+                    search: .constant("")
+                )
+            },
+            named: "entities-failed"
+        )
+    }
+}
+
+@MainActor
+final class SyncSnapshotTests: SnapshotTestCase {
+    private func sync(
+        direction: SyncDirection = .homeAssistantToAppleHome,
+        subject: SyncSubject = .placement,
+        dryRun: DryRunResult? = nil,
+        progress: SyncProgress? = nil,
+        error: String? = nil,
+        isWorking: Bool = false
+    ) -> some View {
+        SyncContent(
+            homes: [Fixtures.home, Fixtures.secondHome],
+            servers: [Fixtures.houseServer, Fixtures.beachServer],
+            homeId: .constant(Fixtures.home.id),
+            serverId: .constant(Fixtures.houseServer.id),
+            direction: .constant(direction),
+            subject: .constant(subject),
+            dryRunResult: dryRun,
+            progress: progress,
+            errorMessage: error,
+            isWorking: isWorking
+        )
+    }
+
+    func testTheStepsBeforeAnyPreview() {
+        assertScreen(NavigationStack { sync() }, named: "sync")
+    }
+
+    func testTheOtherDirection() {
+        assertScreen(
+            NavigationStack { sync(direction: .appleHomeToHomeAssistant, subject: .names) },
+            named: "sync-reversed"
         )
     }
 
     func testPreviewWithChanges() {
-        assertScreen(
-            NavigationStack {
-                SyncContent(
-                    homes: [Fixtures.home],
-                    selectedHomeId: Fixtures.home.id,
-                    serverName: Fixtures.houseServer.name,
-                    serverState: .connected,
-                    operation: .constant(.devicePlacementHAToHome),
-                    dryRunResult: Fixtures.placementPreview,
-                    progress: nil,
-                    errorMessage: nil,
-                    isWorking: false
-                )
-            },
-            named: "sync-preview-changes"
-        )
+        assertScreen(NavigationStack { sync(dryRun: Fixtures.placementPreview) }, named: "sync-preview")
     }
 
     func testAlreadyInSync() {
         assertScreen(
-            NavigationStack {
-                SyncContent(
-                    homes: [Fixtures.home],
-                    selectedHomeId: Fixtures.home.id,
-                    serverName: Fixtures.houseServer.name,
-                    serverState: .connected,
-                    operation: .constant(.deviceNamesHomeToHA),
-                    dryRunResult: Fixtures.upToDatePreview,
-                    progress: nil,
-                    errorMessage: nil,
-                    isWorking: false
-                )
-            },
+            NavigationStack { sync(subject: .names, dryRun: Fixtures.upToDatePreview) },
             named: "sync-already-in-sync"
         )
     }
 
-    func testApplyingChanges() {
+    func testApplying() {
         assertScreen(
-            NavigationStack {
-                SyncContent(
-                    homes: [Fixtures.home],
-                    selectedHomeId: Fixtures.home.id,
-                    serverName: Fixtures.houseServer.name,
-                    serverState: .connected,
-                    operation: .constant(.devicePlacementHAToHome),
-                    dryRunResult: Fixtures.placementPreview,
-                    progress: Fixtures.runningProgress,
-                    errorMessage: nil,
-                    isWorking: false
-                )
-            },
+            NavigationStack { sync(dryRun: Fixtures.placementPreview, progress: Fixtures.runningProgress, isWorking: true) },
             named: "sync-applying"
         )
     }
 
-    func testSyncError() {
+    func testSyncFailed() {
         assertScreen(
-            NavigationStack {
-                SyncContent(
-                    homes: [Fixtures.home],
-                    selectedHomeId: Fixtures.home.id,
-                    serverName: nil,
-                    serverState: nil,
-                    operation: .constant(.roomsHAToHome),
-                    dryRunResult: nil,
-                    progress: nil,
-                    errorMessage: "“Casa” is not linked to a Home Assistant server yet. Link it in Settings.",
-                    isWorking: false
-                )
-            },
-            named: "sync-not-linked"
+            NavigationStack { sync(error: "Home Assistant rejected the access token: Invalid access token") },
+            named: "sync-failed"
         )
     }
 }
@@ -234,10 +258,7 @@ final class SyncSnapshotTests: SnapshotTestCase {
 @MainActor
 final class ActionsSnapshotTests: SnapshotTestCase {
     func testNoScheduledActions() {
-        assertScreen(
-            NavigationStack { ActionsContent(schedules: []) },
-            named: "actions-empty"
-        )
+        assertScreen(NavigationStack { ActionsContent(schedules: []) }, named: "actions-empty")
     }
 
     func testScheduledActions() {
@@ -246,7 +267,8 @@ final class ActionsSnapshotTests: SnapshotTestCase {
                 ActionsContent(
                     schedules: Fixtures.schedules,
                     homes: [Fixtures.home, Fixtures.secondHome],
-                    serverNames: [Fixtures.home.id: Fixtures.houseServer.name, Fixtures.secondHome.id: Fixtures.beachServer.name]
+                    servers: [Fixtures.houseServer, Fixtures.beachServer],
+                    suggestedServerIds: [Fixtures.home.id: Fixtures.houseServer.id]
                 )
             },
             named: "actions-scheduled"
@@ -255,90 +277,29 @@ final class ActionsSnapshotTests: SnapshotTestCase {
 }
 
 @MainActor
-final class EndpointsSnapshotTests: SnapshotTestCase {
-    func testLocalAPIReference() {
+final class LocalAPISnapshotTests: SnapshotTestCase {
+    func testRunning() {
         assertScreen(
-            NavigationStack { EndpointsContent(port: 8400, isRunning: true) },
-            named: "endpoints"
+            NavigationStack {
+                LocalAPIContent(isRunning: true, port: .constant(8400), autoStart: .constant(true))
+            },
+            named: "local-api"
+        )
+    }
+
+    func testStopped() {
+        assertScreen(
+            NavigationStack {
+                LocalAPIContent(isRunning: false, port: .constant(8400), autoStart: .constant(false))
+            },
+            named: "local-api-stopped"
         )
     }
 
     func testEndpointDetail() {
         assertScreen(
-            NavigationStack {
-                EndpointDetailContent(endpoint: EndpointInfo.all[4])
-            },
+            NavigationStack { EndpointDetailContent(endpoint: EndpointInfo.all[4]) },
             named: "endpoint-detail"
-        )
-    }
-}
-
-@MainActor
-final class SettingsSnapshotTests: SnapshotTestCase {
-    func testTwoServersOnMac() {
-        assertScreen(
-            NavigationStack {
-                SettingsContent(
-                    connections: Fixtures.connections,
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    serverPort: .constant(8400),
-                    autoStartServer: .constant(true),
-                    isServerRunning: true,
-                    scheduleCount: 2,
-                    supportsScheduledActions: true
-                )
-            },
-            named: "settings-mac"
-        )
-    }
-
-    /// iPhone and iPad have no scheduled syncs at all; the section is absent.
-    func testNoScheduledSyncsOnPhone() {
-        assertScreen(
-            NavigationStack {
-                SettingsContent(
-                    connections: Fixtures.connectionsWithProblem,
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    serverPort: .constant(8400),
-                    autoStartServer: .constant(false),
-                    isServerRunning: false,
-                    supportsScheduledActions: false
-                )
-            },
-            named: "settings-phone"
-        )
-    }
-
-    func testWithoutICloud() {
-        assertScreen(
-            NavigationStack {
-                SettingsContent(
-                    connections: Fixtures.connections,
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    isSyncingWithCloud: false,
-                    serverPort: .constant(8400),
-                    autoStartServer: .constant(true),
-                    isServerRunning: true,
-                    supportsScheduledActions: false
-                )
-            },
-            named: "settings-no-icloud"
-        )
-    }
-
-    func testNoServersYet() {
-        assertScreen(
-            NavigationStack {
-                SettingsContent(
-                    connections: [],
-                    homes: [Fixtures.home],
-                    serverPort: .constant(8400),
-                    autoStartServer: .constant(true),
-                    isServerRunning: false,
-                    supportsScheduledActions: false
-                )
-            },
-            named: "settings-no-servers"
         )
     }
 }
@@ -348,11 +309,7 @@ final class ServerDetailSnapshotTests: SnapshotTestCase {
     func testConfiguredServer() {
         assertScreen(
             NavigationStack {
-                ServerDetailContent(
-                    server: .constant(Fixtures.houseServer),
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    connectionState: .succeeded
-                )
+                ServerDetailContent(server: .constant(Fixtures.houseServer), connectionState: .succeeded)
             },
             named: "server-detail"
         )
@@ -364,7 +321,6 @@ final class ServerDetailSnapshotTests: SnapshotTestCase {
                 ServerDetailContent(
                     server: .constant(HomeAssistantServer(name: "Studio", address: "studio.local:8123/lovelace/0", token: "Bearer abc")),
                     isNew: true,
-                    homes: [Fixtures.home],
                     connectionState: .failed("Could not connect. Check the address and token, then try again.")
                 )
             },
@@ -384,18 +340,14 @@ final class LogsSnapshotTests: SnapshotTestCase {
                     selectedCategory: .constant(.all)
                 )
             },
-            named: "activity-entries"
+            named: "activity"
         )
     }
 
     func testEmptyActivity() {
         assertScreen(
             NavigationStack {
-                LogsContent(
-                    entries: [],
-                    search: .constant(""),
-                    selectedCategory: .constant(.all)
-                )
+                LogsContent(entries: [], search: .constant(""), selectedCategory: .constant(.all))
             },
             named: "activity-empty"
         )

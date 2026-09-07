@@ -14,9 +14,6 @@ struct HomeAssistantServer: Identifiable, Codable, Equatable {
     /// Kept out of the synced record on purpose: the token travels through the
     /// iCloud keychain, which is end-to-end encrypted, not through key-value storage.
     var token: String
-    /// Apple Home identifiers this server is paired with. A home belongs to exactly
-    /// one server: its devices carry entity IDs from that one instance.
-    var linkedHomeIds: [String]
     /// When this record last changed, which is how two devices decide whose copy wins.
     var updatedAt: Date
 
@@ -25,19 +22,17 @@ struct HomeAssistantServer: Identifiable, Codable, Equatable {
         name: String = "Home Assistant",
         address: String = "",
         token: String = "",
-        linkedHomeIds: [String] = [],
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.name = name
         self.address = address
         self.token = token
-        self.linkedHomeIds = linkedHomeIds
         self.updatedAt = updatedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, address, linkedHomeIds, updatedAt
+        case id, name, address, updatedAt
         /// Only ever read: older versions stored the token alongside the record, and
         /// `ConnectionStore` moves it into the keychain on first load.
         case token
@@ -48,7 +43,6 @@ struct HomeAssistantServer: Identifiable, Codable, Equatable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         address = try container.decode(String.self, forKey: .address)
-        linkedHomeIds = try container.decodeIfPresent([String].self, forKey: .linkedHomeIds) ?? []
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .distantPast
         token = try container.decodeIfPresent(String.self, forKey: .token) ?? ""
     }
@@ -58,17 +52,12 @@ struct HomeAssistantServer: Identifiable, Codable, Equatable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(address, forKey: .address)
-        try container.encode(linkedHomeIds, forKey: .linkedHomeIds)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
 
     /// Two records are the same to a person when everything but the timestamp matches.
     func hasSameContent(as other: HomeAssistantServer) -> Bool {
-        id == other.id
-            && name == other.name
-            && address == other.address
-            && token == other.token
-            && linkedHomeIds == other.linkedHomeIds
+        id == other.id && name == other.name && address == other.address && token == other.token
     }
 
     /// The address with whitespace and a trailing slash removed.
@@ -107,4 +96,28 @@ enum ServerConnectionState: Equatable {
         guard case .failed(let message) = self else { return nil }
         return message
     }
+}
+
+/// One Home Assistant entity, as the app lists it.
+struct EntitySummary: Identifiable, Equatable {
+    let entityId: String
+    let name: String
+    let state: String
+
+    var id: String { entityId }
+
+    /// "light" from "light.kitchen_ceiling" — the part that says what kind of thing it is.
+    var domain: String {
+        entityId.split(separator: ".").first.map(String.init) ?? ""
+    }
+}
+
+/// Entities as Home Assistant groups them: by area, with everything unassigned last.
+struct EntityArea: Identifiable, Equatable {
+    let name: String
+    let entities: [EntitySummary]
+
+    var id: String { name }
+
+    static let unassignedName = "No Area"
 }

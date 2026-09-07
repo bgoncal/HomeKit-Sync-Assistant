@@ -36,7 +36,7 @@ HomeKitBridge/
     LogStore.swift              In-app log buffer
     ScheduledActionManager.swift
   AppIcon.icon               Icon Composer document — the only icon source
-  Views/                     SwiftUI views
+  Views/                     SwiftUI views — Home, Sync, Activity and what they push to
     BridgeUI.swift             Shared rows and pills (BridgeStatusRow, BridgePill, …)
     MainTabView.swift, *View.swift
 HomeKitBridgeTests/          Snapshot + logic tests (see "Tests")
@@ -50,9 +50,10 @@ The app talks to **several Home Assistant servers** and **several Apple Homes**.
 - `ConnectionStore` owns `[HomeAssistantServer]`, persists them as JSON in
   `UserDefaults` (`homeAssistantServers`), and keeps one `HAWebSocketClient` per
   server plus its `ServerConnectionState`.
-- **A home is paired with exactly one server** — its devices carry entity IDs from
-  that instance. Linking a home to a server takes it off any other. One server can
-  serve several homes.
+- **Nothing is bound together.** A home and a server are chosen at the moment of a
+  sync; `ConnectionStore` only *remembers* the last pair per home and offers it again
+  (`suggestedServer(forHomeId:)`). With a single server it is offered without any
+  history. `DryRunResult` carries both ids so applying cannot land elsewhere.
 - **A single server with no explicit links serves every home.** That is what an
   upgrade from the one-server version looks like, and `ConnectionStore` migrates the
   old `haURL`/`haToken` defaults into that first server.
@@ -60,9 +61,9 @@ The app talks to **several Home Assistant servers** and **several Apple Homes**.
   `execute`, and `homeAssistantMatch` all take a `homeId` and look up the server, the
   client, and the connection from it. A `DryRunResult` remembers its `homeId` so
   applying a plan cannot land on a different server than the preview did.
-- Screens group connection settings **per item**: one section per server on the
-  Dashboard, one row per server in Settings with a detail screen behind it, and a
-  per-home picker for the pairing.
+- Screens group connection settings **per item**: the Home screen opens onto one list
+  per side, a server row leads to its entities with its settings behind a toolbar
+  button, and the pair is chosen on the Sync screen.
 
 ### Sharing the configuration between devices
 
@@ -92,6 +93,22 @@ from the `.icon`, and a second icon set only competes with it. The target's
 **Resources build phase** is what puts it in the bundle — without it the archive has
 no icon and App Store Connect refuses the build, which is what `AppResourcesTests`
 guards.
+
+## Screens
+
+Three tabs: **Home**, **Sync**, **Activity** (the Mac shows Home, Sync and Scheduled
+Syncs in a sidebar). Everything else is pushed from Home:
+
+- Two boxes at the top open the Apple Home list and the Home Assistant list. A home
+  leads to its devices grouped by room; a server leads to its entities grouped by area.
+  Both screens are searchable by name or entity ID.
+- Local API sits below them with a running badge, and its screen holds the switch, the
+  port, what the API is for, and every endpoint.
+- The bottom holds the tip jar (`com.hasync.tip`, a consumable that unlocks nothing),
+  the repository and X links, and the way back into the setup guide.
+
+Sync is deliberately a numbered sequence — direction, what, preview, apply — and apply
+asks for confirmation before writing.
 
 ## Platform differences
 

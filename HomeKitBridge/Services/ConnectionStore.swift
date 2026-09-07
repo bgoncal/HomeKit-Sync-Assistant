@@ -10,6 +10,9 @@ struct ConfigurationPayload: Codable, Equatable {
 
     var servers: [HomeAssistantServer] = []
     var deletedServers: [DeletedServer] = []
+    /// The last server used to sync each Apple Home, so the Sync screen can offer
+    /// the same pair again. It is a memory of a choice, not a binding link.
+    var lastUsedServerByHome: [String: UUID] = [:]
 
     /// Combines two copies of the configuration without a server, by taking the
     /// newer record for each id and honouring deletions that happened after it.
@@ -33,11 +36,18 @@ struct ConfigurationPayload: Codable, Equatable {
 
         // Keep the order stable across devices: oldest record first.
         let ordered = servers.values.sorted { ($0.updatedAt, $0.id.uuidString) < ($1.updatedAt, $1.id.uuidString) }
+
+        // A remembered pairing is a convenience, so the remote one only fills gaps.
+        var pairings = remote.lastUsedServerByHome
+        pairings.merge(local.lastUsedServerByHome) { _, mine in mine }
+        pairings = pairings.filter { servers[$0.value] != nil }
+
         return ConfigurationPayload(
             servers: ordered,
             deletedServers: deletions
                 .map { DeletedServer(id: $0.key, deletedAt: $0.value) }
-                .sorted { $0.deletedAt < $1.deletedAt }
+                .sorted { $0.deletedAt < $1.deletedAt },
+            lastUsedServerByHome: pairings
         )
     }
 }
@@ -54,6 +64,7 @@ struct ConfigurationPayload: Codable, Equatable {
 final class ConnectionStore: ObservableObject {
     @Published private(set) var servers: [HomeAssistantServer] = []
     @Published private(set) var states: [UUID: ServerConnectionState] = [:]
+    @Published private(set) var lastUsedServerByHome: [String: UUID] = [:]
     /// False when iCloud is unavailable (signed out, or turned off), so the UI can
     /// say the configuration is only on this device.
     @Published private(set) var isSyncingWithCloud = false
@@ -91,31 +102,27 @@ final class ConnectionStore: ObservableObject {
         servers.first { $0.id == id }
     }
 
-    /// The server paired with an Apple Home.
-    ///
-    /// A single server with no explicit link still serves every home: that is what
-    /// setups upgraded from the one-server version look like until someone links them.
-    func server(forHomeId homeId: String) -> HomeAssistantServer? {
-        if let linked = servers.first(where: { $0.linkedHomeIds.contains(homeId) }) {
-            return linked
+    /// The server to offer for an Apple Home: the one used last time, or the only
+    /// one there is. Nothing is bound together — this is a pre-filled suggestion,
+    /// and the choice is made again on every sync.
+    func suggestedServer(forHomeId homeId: String) -> HomeAssistantServer? {
+        if let remembered = lastUsedServerByHome[homeId], let server = server(id: remembered) {
+            return server
         }
-        if servers.count == 1, servers[0].linkedHomeIds.isEmpty {
-            return servers[0]
-        }
-        return nil
+        return servers.count == 1 ? servers.first : nil
+    }
+
+    /// Records which pair was used, so the same one is offered next time.
+    func rememberPairing(homeId: String, serverId: UUID) {
+        guard lastUsedServerByHome[homeId] != serverId else { return }
+        lastUsedServerByHome[homeId] = serverId
+        save()
     }
 
     func state(forServerId id: UUID) -> ServerConnectionState {
         states[id] ?? .disconnected
     }
 
-    func state(forHomeId homeId: String) -> ServerConnectionState? {
-        server(forHomeId: homeId).map { state(forServerId: $0.id) }
-    }
-
-    func unlinkedHomeIds(among homeIds: [String]) -> [String] {
-        homeIds.filter { server(forHomeId: $0) == nil }
-    }
 
     // MARK: - Editing
 
@@ -139,14 +146,6 @@ final class ConnectionStore: ObservableObject {
         var stamped = server
         stamped.updatedAt = Date()
         updated[index] = stamped
-
-        // A home can only belong to one server; moving it here takes it off the others.
-        for otherIndex in updated.indices where updated[otherIndex].id != server.id {
-            let overlap = updated[otherIndex].linkedHomeIds.filter { server.linkedHomeIds.contains($0) }
-            guard !overlap.isEmpty else { continue }
-            updated[otherIndex].linkedHomeIds.removeAll { server.linkedHomeIds.contains($0) }
-            updated[otherIndex].updatedAt = Date()
-        }
         servers = updated
 
         clients[server.id]?.configure(address: stamped.normalizedAddress, token: stamped.token)
@@ -161,33 +160,11 @@ final class ConnectionStore: ObservableObject {
         clients[serverId] = nil
         states[serverId] = nil
         servers.removeAll { $0.id == serverId }
+        lastUsedServerByHome = lastUsedServerByHome.filter { $0.value != serverId }
         deletedServers.removeAll { $0.id == serverId }
         deletedServers.append(ConfigurationPayload.DeletedServer(id: serverId, deletedAt: Date()))
         tokens.removeToken(forServerId: serverId)
         save()
-    }
-
-    func link(homeId: String, toServerId serverId: UUID?) {
-        var updated = servers
-        for index in updated.indices {
-            let had = updated[index].linkedHomeIds.contains(homeId)
-            updated[index].linkedHomeIds.removeAll { $0 == homeId }
-            if updated[index].id == serverId {
-                updated[index].linkedHomeIds.append(homeId)
-            }
-            if had != updated[index].linkedHomeIds.contains(homeId) {
-                updated[index].updatedAt = Date()
-            }
-        }
-        servers = updated
-        save()
-    }
-
-    /// Used when setup finishes: a first server serves everything found so far.
-    func linkAllHomes(_ homeIds: [String], toServerId serverId: UUID) {
-        for homeId in homeIds where server(forHomeId: homeId) == nil {
-            link(homeId: homeId, toServerId: serverId)
-        }
     }
 
     private func defaultName() -> String {
@@ -223,10 +200,6 @@ final class ConnectionStore: ObservableObject {
         }
         clients[serverId] = client
         return client
-    }
-
-    func client(forHomeId homeId: String) -> HAWebSocketClient? {
-        server(forHomeId: homeId).flatMap { client(forServerId: $0.id) }
     }
 
     @discardableResult
@@ -286,13 +259,20 @@ final class ConnectionStore: ObservableObject {
             return server
         }
         deletedServers = payload.deletedServers
+        lastUsedServerByHome = payload.lastUsedServerByHome.filter { pairing in
+            servers.contains { $0.id == pairing.value }
+        }
         for id in states.keys where !servers.contains(where: { $0.id == id }) {
             states[id] = nil
         }
     }
 
     private func currentPayload() -> ConfigurationPayload {
-        ConfigurationPayload(servers: servers, deletedServers: deletedServers)
+        ConfigurationPayload(
+            servers: servers,
+            deletedServers: deletedServers,
+            lastUsedServerByHome: lastUsedServerByHome
+        )
     }
 
     private func save() {
@@ -357,29 +337,17 @@ final class ConnectionStore: ObservableObject {
         }
     }
 }
-/// One server, how its connection is doing, and the Apple Homes it serves —
-/// everything a screen needs to show a connection as a single grouped item.
+/// One server and how its connection is doing — what a screen needs to show a
+/// connection as a single item.
 struct ConnectionSummary: Identifiable, Equatable {
     let server: HomeAssistantServer
     let state: ServerConnectionState
-    let linkedHomes: [HomeSummary]
 
     var id: UUID { server.id }
 }
 
 extension ConnectionStore {
-    /// The servers, each with its state and the homes it serves.
-    func summaries(homes: [HomeSummary]) -> [ConnectionSummary] {
-        servers.map { server in
-            let linked = homes.filter { home in
-                self.server(forHomeId: home.id)?.id == server.id
-            }
-            return ConnectionSummary(server: server, state: state(forServerId: server.id), linkedHomes: linked)
-        }
-    }
-
-    /// Homes with no server, which is what the UI nudges people to fix.
-    func unlinkedHomes(_ homes: [HomeSummary]) -> [HomeSummary] {
-        homes.filter { server(forHomeId: $0.id) == nil }
+    var summaries: [ConnectionSummary] {
+        servers.map { ConnectionSummary(server: $0, state: state(forServerId: $0.id)) }
     }
 }

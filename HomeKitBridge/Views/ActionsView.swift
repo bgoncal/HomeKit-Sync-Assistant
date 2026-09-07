@@ -9,9 +9,10 @@ struct ActionsView: View {
         ActionsContent(
             schedules: scheduledActionManager.schedules,
             homes: homeKitManager.homes,
-            serverNames: Dictionary(
+            servers: connections.servers,
+            suggestedServerIds: Dictionary(
                 uniqueKeysWithValues: homeKitManager.homes.map { home in
-                    (home.id, connections.server(forHomeId: home.id)?.name)
+                    (home.id, connections.suggestedServer(forHomeId: home.id)?.id)
                 }
             ),
             onAdd: { scheduledActionManager.addSchedule() },
@@ -29,8 +30,9 @@ struct ActionsView: View {
 struct ActionsContent: View {
     let schedules: [ScheduledAction]
     var homes: [HomeSummary] = []
-    /// Which Home Assistant serves each home, so a schedule can name both sides.
-    var serverNames: [String: String?] = [:]
+    var servers: [HomeAssistantServer] = []
+    /// The server last used with each home, offered when a schedule has no choice yet.
+    var suggestedServerIds: [String: UUID?] = [:]
     var onAdd: () -> Void = {}
     var onUpdate: (ScheduledAction) -> Void = { _ in }
     var onDelete: (ScheduledAction) -> Void = { _ in }
@@ -89,6 +91,19 @@ struct ActionsContent: View {
             }
             .disabled(!schedule.isEnabled || homes.isEmpty)
 
+            Picker(SyncPlatform.homeAssistant.name, selection: Binding(
+                get: { resolvedServerId(for: schedule) },
+                set: { binding.wrappedValue.serverId = $0 }
+            )) {
+                if servers.isEmpty {
+                    Text("None").tag(UUID?.none)
+                }
+                ForEach(servers) { server in
+                    Text(server.name).tag(UUID?.some(server.id))
+                }
+            }
+            .disabled(!schedule.isEnabled || servers.isEmpty)
+
             DatePicker(
                 "Time",
                 selection: timeBinding(for: binding),
@@ -118,18 +133,6 @@ struct ActionsContent: View {
                 }
             }
 
-            LabeledContent(SyncPlatform.homeAssistant.name) {
-                if let serverName = serverName(for: schedule) {
-                    BridgePill(
-                        title: serverName,
-                        systemImage: SyncPlatform.homeAssistant.symbolName,
-                        tint: SyncPlatform.homeAssistant.tint
-                    )
-                } else {
-                    BridgePill(title: "Not Linked", systemImage: "link.badge.plus", tint: .orange)
-                }
-            }
-
             Button("Delete Action", role: .destructive) {
                 onDelete(schedule)
             }
@@ -151,8 +154,15 @@ struct ActionsContent: View {
         homes.first { $0.id == resolvedHomeId(for: schedule) }?.name
     }
 
+    private func resolvedServerId(for schedule: ScheduledAction) -> UUID? {
+        if let chosen = schedule.serverId, servers.contains(where: { $0.id == chosen }) {
+            return chosen
+        }
+        return (suggestedServerIds[resolvedHomeId(for: schedule)] ?? nil) ?? servers.first?.id
+    }
+
     private func serverName(for schedule: ScheduledAction) -> String? {
-        serverNames[resolvedHomeId(for: schedule)] ?? nil
+        servers.first { $0.id == resolvedServerId(for: schedule) }?.name
     }
 
     private func summary(for schedule: ScheduledAction) -> String {
@@ -170,7 +180,7 @@ struct ActionsContent: View {
             return "\(action). Paused — it was set to run daily at \(time)."
         }
         if serverName(for: schedule) == nil {
-            return "\(action). It cannot run until its Apple Home is linked to a Home Assistant server in Settings."
+            return "\(action). It cannot run until a Home Assistant is chosen for it."
         }
         return "\(action). Every day at \(time), changes are applied in \(destination) while the app is open."
     }

@@ -5,9 +5,11 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
     var isEnabled: Bool
     var timeMinutes: Int
     var operationRawValue: String
-    /// The Apple Home this runs against, and with it the paired Home Assistant server.
-    /// Empty means "the home selected in the app", which is what upgrades start as.
+    /// The Apple Home this runs against. Empty means "the home selected in the app",
+    /// which is what upgrades start as.
     var homeId: String
+    /// The Home Assistant to sync it with. `nil` falls back to the pair last used.
+    var serverId: UUID?
     var lastRunDay: String?
 
     init(
@@ -16,6 +18,7 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
         timeMinutes: Int = 8 * 60,
         operationRawValue: String = SyncOperation.devicePlacementHAToHome.rawValue,
         homeId: String = "",
+        serverId: UUID? = nil,
         lastRunDay: String? = nil
     ) {
         self.id = id
@@ -23,11 +26,12 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
         self.timeMinutes = timeMinutes
         self.operationRawValue = operationRawValue
         self.homeId = homeId
+        self.serverId = serverId
         self.lastRunDay = lastRunDay
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, isEnabled, timeMinutes, operationRawValue, homeId, lastRunDay
+        case id, isEnabled, timeMinutes, operationRawValue, homeId, serverId, lastRunDay
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +41,7 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
         timeMinutes = try container.decode(Int.self, forKey: .timeMinutes)
         operationRawValue = try container.decode(String.self, forKey: .operationRawValue)
         homeId = try container.decodeIfPresent(String.self, forKey: .homeId) ?? ""
+        serverId = try container.decodeIfPresent(UUID.self, forKey: .serverId)
         lastRunDay = try container.decodeIfPresent(String.self, forKey: .lastRunDay)
     }
 
@@ -72,12 +77,14 @@ final class ScheduledActionManager: ObservableObject {
     private let syncEngine: SyncEngine
     private let logStore: LogStore
     private let homeKitManager: HomeKitManager
+    private let connections: ConnectionStore
     private var timer: Timer?
 
-    init(syncEngine: SyncEngine, logStore: LogStore, homeKitManager: HomeKitManager) {
+    init(syncEngine: SyncEngine, logStore: LogStore, homeKitManager: HomeKitManager, connections: ConnectionStore) {
         self.syncEngine = syncEngine
         self.logStore = logStore
         self.homeKitManager = homeKitManager
+        self.connections = connections
         loadSchedules()
     }
 
@@ -170,15 +177,26 @@ final class ScheduledActionManager: ObservableObject {
             return
         }
 
+        let resolvedServerId = currentSchedule.serverId ?? connections.suggestedServer(forHomeId: home.id)?.id
+        guard let serverId = resolvedServerId, let server = connections.server(id: serverId) else {
+            logStore.add(
+                category: .error,
+                message: "Scheduled action failed",
+                details: "It has no Home Assistant to sync “\(home.name)” with."
+            )
+            markSchedule(schedule.id, lastRunDay: todayKey)
+            return
+        }
+
         markSchedule(schedule.id, lastRunDay: todayKey)
         logStore.add(
             category: .sync,
             message: "Scheduled action started",
-            details: "\(operation.displayTitle) · \(home.name)"
+            details: "\(operation.displayTitle) · \(home.name) ↔ \(server.name)"
         )
 
         do {
-            let result = try await syncEngine.dryRun(operation, homeId: home.id)
+            let result = try await syncEngine.dryRun(operation, homeId: home.id, serverId: serverId)
             if result.changes.isEmpty {
                 logStore.add(category: .sync, message: "Scheduled action finished", details: result.summary)
             } else {

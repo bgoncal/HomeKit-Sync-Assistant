@@ -5,47 +5,64 @@ struct SyncView: View {
     @EnvironmentObject private var syncEngine: SyncEngine
     @EnvironmentObject private var connections: ConnectionStore
 
-    @State private var operation: SyncOperation = .devicePlacementHAToHome
+    @State private var direction: SyncDirection = .homeAssistantToAppleHome
+    @State private var subject: SyncSubject = .placement
+    @State private var homeId: String = ""
+    @State private var serverId: UUID?
     @State private var dryRunResult: DryRunResult?
     @State private var isWorking = false
     @State private var errorMessage: String?
 
-    private var selectedHome: HomeSummary? { homeKitManager.selectedHome }
+    private var operation: SyncOperation { direction.operation(for: subject) }
 
     var body: some View {
         SyncContent(
             homes: homeKitManager.homes,
-            selectedHomeId: selectedHome?.id,
-            serverName: selectedHome.flatMap { connections.server(forHomeId: $0.id)?.name },
-            serverState: selectedHome.flatMap { connections.state(forHomeId: $0.id) },
-            operation: $operation,
+            servers: connections.servers,
+            homeId: $homeId,
+            serverId: $serverId,
+            direction: $direction,
+            subject: $subject,
             dryRunResult: dryRunResult,
             progress: syncEngine.progress,
             errorMessage: errorMessage,
             isWorking: isWorking,
-            onSelectHome: { homeId in
-                homeKitManager.selectHome(id: homeId)
-                dryRunResult = nil
-                errorMessage = nil
-            },
             onPreview: { Task { await runDryRun() } },
             onApply: { Task { await apply() } }
         )
-        .onChange(of: operation) { _, _ in
-            dryRunResult = nil
-            errorMessage = nil
+        .onAppear(perform: restoreChoice)
+        .onChange(of: operation) { _, _ in clearPlan() }
+        .onChange(of: homeId) { _, newValue in
+            // The app remembers which server was used with this home last time.
+            serverId = connections.suggestedServer(forHomeId: newValue)?.id ?? serverId
+            clearPlan()
+        }
+        .onChange(of: serverId) { _, _ in clearPlan() }
+    }
+
+    private func restoreChoice() {
+        if homeId.isEmpty {
+            homeId = homeKitManager.selectedHome?.id ?? homeKitManager.homes.first?.id ?? ""
+        }
+        if serverId == nil {
+            serverId = connections.suggestedServer(forHomeId: homeId)?.id ?? connections.servers.first?.id
         }
     }
 
+    private func clearPlan() {
+        dryRunResult = nil
+        errorMessage = nil
+    }
+
     private func runDryRun() async {
-        guard let homeId = selectedHome?.id else { return }
+        guard !homeId.isEmpty, let serverId else { return }
         isWorking = true
         errorMessage = nil
         dryRunResult = nil
         defer { isWorking = false }
 
         do {
-            dryRunResult = try await syncEngine.dryRun(operation, homeId: homeId)
+            dryRunResult = try await syncEngine.dryRun(operation, homeId: homeId, serverId: serverId)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -66,29 +83,33 @@ struct SyncView: View {
     }
 }
 
-/// Pick a direction, preview the plan, then apply it.
+/// Sync in the order the decision is actually made: which way, what, preview, apply.
 struct SyncContent: View {
     let homes: [HomeSummary]
-    let selectedHomeId: String?
-    /// The Home Assistant paired with the selected home, if there is one.
-    var serverName: String?
-    var serverState: ServerConnectionState?
-    @Binding var operation: SyncOperation
+    let servers: [HomeAssistantServer]
+    @Binding var homeId: String
+    @Binding var serverId: UUID?
+    @Binding var direction: SyncDirection
+    @Binding var subject: SyncSubject
     let dryRunResult: DryRunResult?
     let progress: SyncProgress?
     let errorMessage: String?
     let isWorking: Bool
-    var onSelectHome: (String) -> Void = { _ in }
     var onPreview: () -> Void = {}
     var onApply: () -> Void = {}
 
-    private var hasHome: Bool { selectedHomeId != nil || !homes.isEmpty }
-    private var isLinked: Bool { serverName != nil }
+    @State private var isConfirmingApply = false
+
+    private var operation: SyncOperation { direction.operation(for: subject) }
+    private var home: HomeSummary? { homes.first { $0.id == homeId } ?? homes.first }
+    private var server: HomeAssistantServer? { servers.first { $0.id == serverId } ?? servers.first }
+    private var isReady: Bool { home != nil && server != nil }
 
     var body: some View {
         List {
-            planSection
-            actionsSection
+            directionSection
+            subjectSection
+            previewButtonSection
 
             if let progress {
                 progressSection(progress)
@@ -106,59 +127,44 @@ struct SyncContent: View {
             }
 
             previewSection
+            applySection
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Sync")
+        .confirmationDialog(
+            confirmationTitle,
+            isPresented: $isConfirmingApply,
+            titleVisibility: .visible
+        ) {
+            Button(confirmationButton, role: .destructive, action: onApply)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(confirmationMessage)
+        }
     }
 
-    // MARK: Plan
+    // MARK: 1 — which way
 
-    private var planSection: some View {
+    private var directionSection: some View {
         Section {
-            Picker("Apple Home", selection: Binding(
-                get: { selectedHomeId ?? "" },
-                set: { onSelectHome($0) }
-            )) {
-                if homes.isEmpty {
-                    Text("None").tag("")
-                }
-                ForEach(homes) { home in
-                    Text(home.name).tag(home.id)
-                }
+            Picker("Read from", selection: $direction) {
+                Text(SyncPlatform.homeAssistant.name).tag(SyncDirection.homeAssistantToAppleHome)
+                Text(SyncPlatform.appleHome.name).tag(SyncDirection.appleHomeToHomeAssistant)
             }
-            .disabled(isWorking || homes.isEmpty)
-
-            LabeledContent(SyncPlatform.homeAssistant.name) {
-                if let serverName {
-                    BridgePill(
-                        title: serverName,
-                        systemImage: serverState?.isConnected == true ? "checkmark.circle.fill" : SyncPlatform.homeAssistant.symbolName,
-                        tint: serverState?.isConnected == true ? .green : SyncPlatform.homeAssistant.tint
-                    )
-                } else {
-                    BridgePill(title: "Not Linked", systemImage: "link.badge.plus", tint: .orange)
-                }
-            }
-
-            Picker("Sync", selection: $operation) {
-                ForEach(SyncSubject.allCases) { subject in
-                    Text(subject.title).tag(operation.direction.operation(for: subject))
-                }
-            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
             .disabled(isWorking)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
-            // One tap turns the sync around; the direction is the thing people get
-            // wrong, so it is a control, not a label.
             Button {
-                operation = operation.inverted
+                direction = direction == .homeAssistantToAppleHome ? .appleHomeToHomeAssistant : .homeAssistantToAppleHome
             } label: {
                 LabeledContent {
                     HStack(spacing: 10) {
-                        BridgeDirectionBadge(direction: operation.direction)
+                        BridgeDirectionBadge(direction: direction)
                         Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.tint)
-                            .accessibilityHidden(true)
                     }
                 } label: {
                     Text("Direction")
@@ -168,22 +174,67 @@ struct SyncContent: View {
             }
             .buttonStyle(.plain)
             .disabled(isWorking)
-            .accessibilityLabel("Direction: from \(operation.direction.source.name) to \(operation.direction.destination.name)")
+            .accessibilityLabel("Direction: from \(direction.source.name) to \(direction.destination.name)")
             .accessibilityHint("Double tap to sync the other way")
-            .accessibilityAddTraits(.isButton)
 
-            Text(operation.displayTitle)
-                .font(.subheadline.weight(.semibold))
+            Picker(SyncPlatform.appleHome.name, selection: $homeId) {
+                if homes.isEmpty {
+                    Text("None").tag("")
+                }
+                ForEach(homes) { home in
+                    Text(home.name).tag(home.id)
+                }
+            }
+            .disabled(isWorking || homes.isEmpty)
+
+            Picker(SyncPlatform.homeAssistant.name, selection: $serverId) {
+                if servers.isEmpty {
+                    Text("None").tag(UUID?.none)
+                }
+                ForEach(servers) { server in
+                    Text(server.name).tag(UUID?.some(server.id))
+                }
+            }
+            .disabled(isWorking || servers.isEmpty)
         } header: {
-            Text("Plan")
+            Text("1 · Which Way")
+        } footer: {
+            Text(isReady
+                 ? "Only \(destinationName) is changed. \(sourceName) is read and left alone."
+                 : "Pick an Apple Home and a Home Assistant to sync between.")
+        }
+    }
+
+    private var sourceName: String {
+        direction.source == .appleHome ? (home?.name ?? SyncPlatform.appleHome.name) : (server?.name ?? SyncPlatform.homeAssistant.name)
+    }
+
+    private var destinationName: String {
+        direction.destination == .appleHome ? (home?.name ?? SyncPlatform.appleHome.name) : (server?.name ?? SyncPlatform.homeAssistant.name)
+    }
+
+    // MARK: 2 — what
+
+    private var subjectSection: some View {
+        Section {
+            Picker("What", selection: $subject) {
+                ForEach(SyncSubject.allCases) { subject in
+                    Text(subject.title).tag(subject)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            .disabled(isWorking)
+        } header: {
+            Text("2 · What to Sync")
         } footer: {
             Text(operation.description)
         }
     }
 
-    // MARK: Actions
+    // MARK: 3 — preview
 
-    private var actionsSection: some View {
+    private var previewButtonSection: some View {
         Section {
             Button(action: onPreview) {
                 HStack {
@@ -194,37 +245,80 @@ struct SyncContent: View {
                     }
                 }
             }
-            .disabled(isWorking || !hasHome || !isLinked)
-
-            Button(action: onApply) {
-                Label(applyTitle, systemImage: "checkmark.circle")
-            }
-            .disabled(isWorking || !hasApplicableChanges)
+            .disabled(isWorking || !isReady)
+        } header: {
+            Text("3 · Preview")
         } footer: {
-            if !hasHome {
-                Text("No Apple Home is available yet. Allow access on the Dashboard, then come back.")
-            } else if !isLinked {
-                Text("This home is not linked to a Home Assistant server yet. Link it in Settings, then come back.")
+            Text("Nothing is written yet. The preview lists every change first.")
+        }
+    }
+
+    @ViewBuilder
+    private var previewSection: some View {
+        if let dryRunResult {
+            if dryRunResult.changes.isEmpty {
+                Section {
+                    BridgeStatusRow(
+                        title: "Already in Sync",
+                        message: dryRunResult.summary,
+                        systemImage: "checkmark.circle.fill",
+                        tint: .green
+                    )
+                }
             } else {
-                Text("Preview lists every change first. Nothing is written until you apply it.")
+                Section {
+                    ForEach(dryRunResult.changes) { change in
+                        changeRow(change)
+                    }
+                } header: {
+                    Text("\(dryRunResult.changes.count) Change\(dryRunResult.changes.count == 1 ? "" : "s")")
+                } footer: {
+                    Text(dryRunResult.summary)
+                }
+            }
+        }
+    }
+
+    // MARK: 4 — apply
+
+    @ViewBuilder
+    private var applySection: some View {
+        if let dryRunResult, !dryRunResult.changes.isEmpty {
+            Section {
+                Button {
+                    isConfirmingApply = true
+                } label: {
+                    Label(applyTitle, systemImage: "checkmark.circle")
+                }
+                .disabled(isWorking)
+            } header: {
+                Text("4 · Apply")
+            } footer: {
+                Text("This writes to \(destinationName). It cannot be undone from here.")
             }
         }
     }
 
     private var applyTitle: String {
-        guard let dryRunResult, !dryRunResult.changes.isEmpty else {
-            return "Apply to \(operation.direction.destination.name)"
-        }
-        let count = dryRunResult.changes.count
-        return "Apply \(count) Change\(count == 1 ? "" : "s") to \(dryRunResult.operation.direction.destination.name)"
+        let count = dryRunResult?.changes.count ?? 0
+        return "Apply \(count) Change\(count == 1 ? "" : "s") to \(destinationName)"
     }
 
-    private var hasApplicableChanges: Bool {
-        guard let dryRunResult else { return false }
-        return !dryRunResult.changes.isEmpty
+    private var confirmationTitle: String {
+        "Apply to \(destinationName)?"
     }
 
-    // MARK: Progress
+    private var confirmationButton: String {
+        let count = dryRunResult?.changes.count ?? 0
+        return "Apply \(count) Change\(count == 1 ? "" : "s")"
+    }
+
+    private var confirmationMessage: String {
+        let count = dryRunResult?.changes.count ?? 0
+        return "\(count) change\(count == 1 ? "" : "s") will be written to \(destinationName). \(sourceName) is not touched."
+    }
+
+    // MARK: Pieces
 
     private func progressSection(_ progress: SyncProgress) -> some View {
         Section {
@@ -249,36 +343,6 @@ struct SyncContent: View {
             .padding(.vertical, 2)
         } header: {
             Text("In Progress")
-        }
-    }
-
-    // MARK: Preview
-
-    @ViewBuilder
-    private var previewSection: some View {
-        if let dryRunResult {
-            if dryRunResult.changes.isEmpty {
-                Section {
-                    BridgeStatusRow(
-                        title: "Already in Sync",
-                        message: dryRunResult.summary,
-                        systemImage: "checkmark.circle.fill",
-                        tint: .green
-                    )
-                } header: {
-                    Text("Preview")
-                }
-            } else {
-                Section {
-                    ForEach(dryRunResult.changes) { change in
-                        changeRow(change)
-                    }
-                } header: {
-                    Text("Preview · \(dryRunResult.changes.count) Change\(dryRunResult.changes.count == 1 ? "" : "s")")
-                } footer: {
-                    Text(dryRunResult.summary)
-                }
-            }
         }
     }
 

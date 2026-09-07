@@ -32,7 +32,12 @@ struct HomeKitBridgeApp: App {
         _syncEngine = StateObject(wrappedValue: sync)
         _httpServer = StateObject(wrappedValue: HTTPServer(homeKit: homeKit, logStore: logs))
         _scheduledActionManager = StateObject(
-            wrappedValue: ScheduledActionManager(syncEngine: sync, logStore: logs, homeKitManager: homeKit)
+            wrappedValue: ScheduledActionManager(
+                syncEngine: sync,
+                logStore: logs,
+                homeKitManager: homeKit,
+                connections: connections
+            )
         )
     }
 

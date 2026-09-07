@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1000024 /* TipService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* TipService.swift */; };
+		A1000023 /* LocalAPIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025 /* LocalAPIView.swift */; };
+		A1000022 /* ServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024 /* ServerDetailView.swift */; };
+		A1000021 /* EntitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023 /* EntitiesView.swift */; };
+		A1000020 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022 /* HomeView.swift */; };
 		A1000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9AEAAAFE30040E2D00CCABBB /* Assets.xcassets */; };
 		A1000018 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF33003F22300CCABBB /* AppIcon.icon */; };
 		B1000020 /* SnapshotSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* SnapshotSupport.swift */; };
@@ -34,10 +39,8 @@
 		A1000006 /* LogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008 /* LogStore.swift */; };
 		A1000007 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009 /* SyncEngine.swift */; };
 		A1000008 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* OnboardingView.swift */; };
-		A1000009 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000012 /* DashboardView.swift */; };
 		A1000010 /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000013 /* SyncView.swift */; };
 		A1000011 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* LogsView.swift */; };
-		A1000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* SettingsView.swift */; };
 		A1000013 /* HAWebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* HAWebSocketClient.swift */; };
 /* End PBXBuildFile section */
 
@@ -60,6 +63,11 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXFileReference section */
+		A2000026 /* TipService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipService.swift; sourceTree = "<group>"; };
+		A2000025 /* LocalAPIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAPIView.swift; sourceTree = "<group>"; };
+		A2000024 /* ServerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDetailView.swift; sourceTree = "<group>"; };
+		A2000023 /* EntitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitiesView.swift; sourceTree = "<group>"; };
+		A2000022 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		B2000001 /* SnapshotSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotSupport.swift; sourceTree = "<group>"; };
 		B2000002 /* Fixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fixtures.swift; sourceTree = "<group>"; };
 		B2000003 /* OnboardingSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSnapshotTests.swift; sourceTree = "<group>"; };
@@ -90,10 +98,8 @@
 		A2000009 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		A2000010 /* HomeKitBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HomeKitBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000011 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-		A2000012 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		A2000013 /* SyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncView.swift; sourceTree = "<group>"; };
 		A2000014 /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
-		A2000015 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A2000016 /* HAWebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HAWebSocketClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -164,6 +170,7 @@
 			children = (
 				A2000003 /* HomeKitManager.swift */,
 				A2000020 /* ConnectionStore.swift */,
+				A2000026 /* TipService.swift */,
 				A2000021 /* ConfigurationSync.swift */,
 				A2000004 /* HTTPServer.swift */,
 				A2000008 /* LogStore.swift */,
@@ -178,11 +185,13 @@
 			isa = PBXGroup;
 			children = (
 				A2000011 /* OnboardingView.swift */,
+				A2000025 /* LocalAPIView.swift */,
+				A2000024 /* ServerDetailView.swift */,
+				A2000023 /* EntitiesView.swift */,
+				A2000022 /* HomeView.swift */,
 				A2000002 /* MainTabView.swift */,
-				A2000012 /* DashboardView.swift */,
 				A2000013 /* SyncView.swift */,
 				A2000014 /* LogsView.swift */,
-				A2000015 /* SettingsView.swift */,
 				9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */,
 				9AEAAAF63003FA3300CCABBB /* DevicesView.swift */,
 				9AEAAAF83004074300CCABBB /* BridgeUI.swift */,
@@ -300,6 +309,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000001 /* HomeKitBridgeApp.swift in Sources */,
+				A1000024 /* TipService.swift in Sources */,
+				A1000023 /* LocalAPIView.swift in Sources */,
+				A1000022 /* ServerDetailView.swift in Sources */,
+				A1000021 /* EntitiesView.swift in Sources */,
+				A1000020 /* HomeView.swift in Sources */,
 				A1000016 /* ConnectionStore.swift in Sources */,
 				A1000019 /* ConfigurationSync.swift in Sources */,
 				A1000015 /* HomeAssistantServer.swift in Sources */,
@@ -316,10 +330,8 @@
 				A1000007 /* SyncEngine.swift in Sources */,
 				9AEAAAF53003F9B700CCABBB /* EndpointsView.swift in Sources */,
 				A1000008 /* OnboardingView.swift in Sources */,
-				A1000009 /* DashboardView.swift in Sources */,
 				A1000010 /* SyncView.swift in Sources */,
 				A1000011 /* LogsView.swift in Sources */,
-				A1000012 /* SettingsView.swift in Sources */,
 				A1000013 /* HAWebSocketClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

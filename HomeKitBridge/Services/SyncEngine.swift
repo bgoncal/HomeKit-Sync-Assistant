@@ -25,7 +25,7 @@ enum SyncPlatform: String, Codable {
 
 /// Which way information flows for a sync operation. Every screen that mentions a
 /// sync shows this, so it is always obvious what gets read and what gets changed.
-enum SyncDirection: String, Codable {
+enum SyncDirection: String, Hashable, Codable {
     case homeAssistantToAppleHome
     case appleHomeToHomeAssistant
 
@@ -65,7 +65,7 @@ enum SyncDirection: String, Codable {
 }
 
 /// What a sync operation keeps aligned.
-enum SyncSubject: String, CaseIterable, Identifiable, Codable {
+enum SyncSubject: String, CaseIterable, Identifiable, Hashable, Codable {
     case rooms
     case placement
     case names
@@ -229,15 +229,17 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
 struct DryRunResult: Identifiable, Equatable {
     let id: UUID
     let operation: SyncOperation
-    /// The Apple Home this plan was made for, and with it the Home Assistant server.
+    /// The pair this plan was made for, so applying it cannot land somewhere else.
     let homeId: String
+    let serverId: UUID
     let summary: String
     let changes: [SyncChange]
 
-    init(id: UUID = UUID(), operation: SyncOperation, homeId: String = "", summary: String, changes: [SyncChange]) {
+    init(id: UUID = UUID(), operation: SyncOperation, homeId: String = "", serverId: UUID = UUID(), summary: String, changes: [SyncChange]) {
         self.id = id
         self.operation = operation
         self.homeId = homeId
+        self.serverId = serverId
         self.summary = summary
         self.changes = changes
     }
@@ -338,7 +340,7 @@ final class SyncEngine: ObservableObject {
 
     // MARK: - Dry Run
 
-    func dryRun(_ operation: SyncOperation, homeId: String) async throws -> DryRunResult {
+    func dryRun(_ operation: SyncOperation, homeId: String, serverId: UUID) async throws -> DryRunResult {
         isBusy = true
         progress = SyncProgress(title: "Preparing preview", detail: operation.displayTitle)
         defer {
@@ -346,7 +348,7 @@ final class SyncEngine: ObservableObject {
             progress = nil
         }
 
-        let context = try await context(forHomeId: homeId)
+        let context = try await context(homeId: homeId, serverId: serverId)
 
         progress = SyncProgress(title: "Comparing \(operation.direction.label)", detail: operation.displayTitle)
         switch operation {
@@ -369,7 +371,7 @@ final class SyncEngine: ObservableObject {
             progress = nil
         }
 
-        let context = try await context(forHomeId: result.homeId)
+        let context = try await context(homeId: result.homeId, serverId: result.serverId)
 
         logStore.add(
             category: .sync,
@@ -656,8 +658,8 @@ final class SyncEngine: ObservableObject {
 
     /// Looks up everything the paired server knows about one bridged accessory,
     /// matching on the HomeKit serial number (which equals the entity ID).
-    func homeAssistantMatch(forEntityId entityId: String, homeId: String) async throws -> HomeAssistantMatch? {
-        let context = try await context(forHomeId: homeId)
+    func homeAssistantMatch(forEntityId entityId: String, homeId: String, serverId: UUID) async throws -> HomeAssistantMatch? {
+        let context = try await context(homeId: homeId, serverId: serverId)
 
         async let statesTask = context.client.getStates()
         async let entitiesTask = context.client.fetchEntityRegistry()
@@ -690,6 +692,76 @@ final class SyncEngine: ObservableObject {
         )
     }
 
+    /// Everything one server exposes, grouped the way Home Assistant groups it.
+    func entities(forServerId serverId: UUID) async throws -> [EntityArea] {
+        guard let server = connections.server(id: serverId), let client = connections.client(forServerId: serverId) else {
+            throw BridgeError.notFound("That Home Assistant is no longer set up.")
+        }
+
+        if !client.isConnected {
+            let ok = await connections.connect(serverId: serverId)
+            if !ok {
+                throw BridgeError.badRequest(
+                    connections.state(forServerId: serverId).message ?? "Could not connect to \(server.name)."
+                )
+            }
+        }
+
+        async let statesTask = client.getStates()
+        async let entitiesTask = client.fetchEntityRegistry()
+        async let devicesTask = client.fetchDeviceRegistry()
+        async let areasTask = client.fetchAreas()
+
+        let states = try await statesTask
+        let registry = try await entitiesTask
+        let devices = try await devicesTask
+        let areas = try await areasTask
+
+        var areaNameById: [String: String] = [:]
+        for area in areas {
+            if let id = area["area_id"] as? String, let name = area["name"] as? String {
+                areaNameById[id] = name
+            }
+        }
+
+        var deviceAreaById: [String: String] = [:]
+        for device in devices {
+            if let id = device["id"] as? String, let areaId = device["area_id"] as? String {
+                deviceAreaById[id] = areaId
+            }
+        }
+
+        var areaNameByEntity: [String: String] = [:]
+        for entity in registry {
+            guard let entityId = entity["entity_id"] as? String else { continue }
+            let areaId = (entity["area_id"] as? String) ?? (entity["device_id"] as? String).flatMap { deviceAreaById[$0] }
+            if let areaId, let name = areaNameById[areaId] {
+                areaNameByEntity[entityId] = name
+            }
+        }
+
+        var grouped: [String: [EntitySummary]] = [:]
+        for state in states {
+            guard let entityId = state["entity_id"] as? String else { continue }
+            let attributes = state["attributes"] as? [String: Any]
+            let entity = EntitySummary(
+                entityId: entityId,
+                name: (attributes?["friendly_name"] as? String) ?? entityId,
+                state: (state["state"] as? String) ?? "unknown"
+            )
+            grouped[areaNameByEntity[entityId] ?? EntityArea.unassignedName, default: []].append(entity)
+        }
+
+        return grouped
+            .map { EntityArea(name: $0.key, entities: $0.value.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }) }
+            .sorted { left, right in
+                // Everything without an area goes last; the rest read alphabetically.
+                if left.name == EntityArea.unassignedName { return false }
+                if right.name == EntityArea.unassignedName { return true }
+                return left.name.localizedCompare(right.name) == .orderedAscending
+            }
+    }
+
     static func prettyJSON(_ object: [String: Any]) -> String {
         guard JSONSerialization.isValidJSONObject(object),
               let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
@@ -705,25 +777,28 @@ final class SyncEngine: ObservableObject {
         DryRunResult(
             operation: operation,
             homeId: context.home.id,
+            serverId: context.server.id,
             summary: operation.summary(changeCount: changes.count),
             changes: changes
         )
     }
 
-    /// Resolves the home, its server, and an open connection — or explains which of
-    /// the three is missing.
-    private func context(forHomeId homeId: String) async throws -> SyncContext {
+    /// Resolves the chosen pair and an open connection — or explains what is missing.
+    private func context(homeId: String, serverId: UUID) async throws -> SyncContext {
         guard let home = homeKitManager.home(byId: homeId) ?? homeKitManager.selectedHome else {
             throw BridgeError.notFound("No Apple Home is available yet. Allow HomeKit access, then pick a home.")
         }
 
-        guard let server = connections.server(forHomeId: home.id) else {
-            throw BridgeError.badRequest("“\(home.name)” is not linked to a Home Assistant server yet. Link it in Settings.")
+        guard let server = connections.server(id: serverId) else {
+            throw BridgeError.notFound("That Home Assistant is no longer set up.")
         }
 
         guard let client = connections.client(forServerId: server.id) else {
             throw BridgeError.notFound("“\(server.name)” is no longer set up.")
         }
+
+        // The pair that just worked is the one to offer next time.
+        connections.rememberPairing(homeId: home.id, serverId: server.id)
 
         if !client.isConnected {
             progress = SyncProgress(title: "Connecting to \(server.name)", detail: server.normalizedAddress)

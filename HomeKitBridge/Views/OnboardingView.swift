@@ -106,7 +106,6 @@ struct OnboardingView: View {
 
     private func finish() {
         saveServer()
-        connections.linkAllHomes(homeKitManager.homes.map(\.id), toServerId: draft.id)
         onboardingComplete = true
     }
 
@@ -497,12 +496,12 @@ struct OnboardingContent: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if !homeNames.isEmpty {
-                    LabeledContent("Homes Linked", value: homeNames.formatted(.list(type: .and)))
+                    LabeledContent("Homes Found", value: homeNames.formatted(.list(type: .and)))
                 }
             } header: {
                 Text("Setup")
             } footer: {
-                Text("Every home found so far is paired with \(server.name.isEmpty ? "this server" : server.name). Change that, or add another server, in Settings.")
+                Text("You choose which home to sync with which server each time, on the Sync screen — and the app remembers your last choice.")
             }
 
             Section {
@@ -519,9 +518,9 @@ struct OnboardingContent: View {
                     tint: .green
                 )
                 BridgeFeatureRow(
-                    systemImage: "gearshape",
+                    systemImage: "square.grid.2x2",
                     title: "More Homes, More Servers",
-                    message: "Settings holds every Home Assistant you add, and which Apple Home each one is paired with.",
+                    message: "The Home screen holds every Apple Home and every Home Assistant you add.",
                     tint: .secondary
                 )
             }

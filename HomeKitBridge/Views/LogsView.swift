@@ -89,7 +89,29 @@ struct LogsContent: View {
                     Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
                 }
             }
+
+            ToolbarItem(placement: .primaryAction) {
+                ShareLink(
+                    item: exportedLog,
+                    preview: SharePreview("Home Sync Assistant activity")
+                ) {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .disabled(filtered.isEmpty)
+            }
         }
+    }
+
+    /// What the export button hands over: the visible rows, oldest first, as text
+    /// that can be pasted into an issue or a mail.
+    private var exportedLog: String {
+        let header = "Home Sync Assistant · activity export · \(Date().formatted(date: .abbreviated, time: .shortened))"
+        let lines = filtered.reversed().map { entry -> String in
+            let timestamp = entry.timestamp.formatted(date: .abbreviated, time: .standard)
+            let details = (entry.details?.isEmpty == false) ? " — \(entry.details ?? "")" : ""
+            return "[\(timestamp)] \(entry.category.title): \(entry.message)\(details)"
+        }
+        return ([header, ""] + lines).joined(separator: "\n")
     }
 
     @ViewBuilder

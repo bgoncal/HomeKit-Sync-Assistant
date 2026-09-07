@@ -1,30 +1,30 @@
 import SwiftUI
 
-struct DevicesView: View {
+/// The devices in one Apple Home, grouped by room.
+struct HomeDevicesView: View {
     @EnvironmentObject private var homeKitManager: HomeKitManager
-    @EnvironmentObject private var syncEngine: SyncEngine
     @EnvironmentObject private var connections: ConnectionStore
+    @EnvironmentObject private var syncEngine: SyncEngine
 
-    @State private var path: [String] = []
+    let homeId: String
+
     @State private var search = ""
 
+    private var home: HomeSummary? { homeKitManager.home(byId: homeId) }
+
     var body: some View {
-        NavigationStack(path: $path) {
-            DevicesContent(
-                homes: homeKitManager.homes,
-                selectedHomeId: homeKitManager.selectedHome?.id,
-                search: $search,
-                onSelectHome: { homeId in
-                    homeKitManager.selectHome(id: homeId)
-                    path.removeAll()
-                }
-            )
+        HomeDevicesContent(home: home, search: $search)
+            // Serial numbers are what pair a device with Home Assistant, so read them
+            // once the list is on screen rather than only inside a sync.
+            .task(id: homeId) {
+                await homeKitManager.refreshSerialNumbers(forHomeId: homeId)
+            }
             .navigationDestination(for: String.self) { accessoryId in
                 if let accessory = homeKitManager.accessory(byId: accessoryId) {
                     DeviceDetailView(
                         accessory: accessory,
-                        homeId: homeKitManager.selectedHome?.id ?? "",
-                        serverName: homeKitManager.selectedHome.flatMap { connections.server(forHomeId: $0.id)?.name }
+                        homeId: homeId,
+                        server: connections.suggestedServer(forHomeId: homeId)
                     )
                     .environmentObject(homeKitManager)
                     .environmentObject(syncEngine)
@@ -36,88 +36,76 @@ struct DevicesView: View {
                     )
                 }
             }
-        }
-        // Serial numbers are what pairs a device with Home Assistant, so read
-        // them once the list is on screen instead of only inside a sync.
-        .task(id: homeKitManager.selectedHome?.id) {
-            guard let homeId = homeKitManager.selectedHome?.id else { return }
-            await homeKitManager.refreshSerialNumbers(forHomeId: homeId)
-        }
     }
 }
 
-/// The device list for one Apple Home.
-struct DevicesContent: View {
-    let homes: [HomeSummary]
-    let selectedHomeId: String?
+struct HomeDevicesContent: View {
+    let home: HomeSummary?
     @Binding var search: String
-    var onSelectHome: (String) -> Void = { _ in }
 
-    private var selectedHome: HomeSummary? {
-        guard let selectedHomeId else { return homes.first }
-        return homes.first { $0.id == selectedHomeId } ?? homes.first
+    /// Devices by room, in the order Apple Home lists the rooms, with anything
+    /// unassigned last.
+    private var rooms: [(name: String, accessories: [AccessorySummary])] {
+        guard let home else { return [] }
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matching = home.accessories.filter { accessory in
+            guard !query.isEmpty else { return true }
+            return accessory.name.localizedCaseInsensitiveContains(query)
+                || accessory.roomName.localizedCaseInsensitiveContains(query)
+                || (accessory.serialNumber?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+
+        var byRoom: [String: [AccessorySummary]] = [:]
+        for accessory in matching {
+            byRoom[accessory.roomName, default: []].append(accessory)
+        }
+
+        let ordered = home.rooms.map(\.name) + [RoomSummary.defaultRoomName]
+        var result: [(String, [AccessorySummary])] = []
+        for name in ordered {
+            if let accessories = byRoom.removeValue(forKey: name), !accessories.isEmpty {
+                result.append((name, accessories))
+            }
+        }
+        for (name, accessories) in byRoom.sorted(by: { $0.key < $1.key }) {
+            result.append((name, accessories))
+        }
+        return result
     }
 
-    private var accessories: [AccessorySummary] {
-        let all = selectedHome?.accessories ?? []
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return all }
-        return all.filter {
-            $0.name.localizedCaseInsensitiveContains(query)
-                || $0.roomName.localizedCaseInsensitiveContains(query)
-                || ($0.serialNumber?.localizedCaseInsensitiveContains(query) ?? false)
-        }
+    private var deviceCount: Int {
+        rooms.reduce(0) { $0 + $1.accessories.count }
     }
 
     var body: some View {
         List {
-            if homes.count > 1 {
+            ForEach(rooms, id: \.name) { room in
                 Section {
-                    Picker("Home", selection: Binding(
-                        get: { selectedHome?.id ?? "" },
-                        set: { onSelectHome($0) }
-                    )) {
-                        ForEach(homes) { home in
-                            Text(home.name).tag(home.id)
-                        }
-                    }
-                }
-            }
-
-            if !accessories.isEmpty {
-                Section {
-                    ForEach(accessories) { accessory in
+                    ForEach(room.accessories) { accessory in
                         NavigationLink(value: accessory.id) {
                             row(for: accessory)
                         }
                     }
                 } header: {
-                    Text("\(accessories.count) Device\(accessories.count == 1 ? "" : "s")")
-                } footer: {
-                    Text("Devices bridged from Home Assistant can be synced. Everything else is listed but skipped.")
+                    Text(room.name)
                 }
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $search, prompt: "Search devices")
+        .searchable(text: $search, prompt: "Search name or entity ID")
         .overlay {
-            if accessories.isEmpty {
+            if rooms.isEmpty {
                 emptyState
             }
         }
-        .navigationTitle(selectedHome?.name ?? "Devices")
+        .navigationTitle(home?.name ?? SyncPlatform.appleHome.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
     private var emptyState: some View {
         if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ContentUnavailableView.search(text: search)
-        } else if homes.isEmpty {
-            ContentUnavailableView(
-                "No Apple Home Yet",
-                systemImage: "house",
-                description: Text("Allow access on the Dashboard, then come back.")
-            )
         } else {
             ContentUnavailableView(
                 "No Devices",
@@ -137,10 +125,18 @@ struct DevicesContent: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(accessory.name)
-                Text(subtitle(for: accessory))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if let entityId = accessory.entityId {
+                    Text(entityId)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else if let model = accessory.model, !model.isEmpty {
+                    Text(model)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 8)
@@ -150,13 +146,6 @@ struct DevicesContent: View {
             }
         }
         .padding(.vertical, 2)
-    }
-
-    private func subtitle(for accessory: AccessorySummary) -> String {
-        [accessory.roomName, accessory.model]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-            .joined(separator: " · ")
     }
 }
 
@@ -179,7 +168,8 @@ private struct DeviceDetailView: View {
 
     let accessory: AccessorySummary
     let homeId: String
-    let serverName: String?
+    /// The Home Assistant to ask about this device — the one last used with this home.
+    let server: HomeAssistantServer?
 
     @State private var matchState: DeviceMatchState = .loading
     @State private var resolvedAccessory: AccessorySummary?
@@ -188,7 +178,7 @@ private struct DeviceDetailView: View {
         DeviceDetailContent(
             accessory: resolvedAccessory ?? accessory,
             matchState: matchState,
-            serverName: serverName
+            serverName: server?.name
         )
         .task(id: accessory.id) {
             await loadMatch()
@@ -206,13 +196,13 @@ private struct DeviceDetailView: View {
             return
         }
 
-        guard serverName != nil else {
+        guard let server else {
             matchState = .noServer
             return
         }
 
         do {
-            if let match = try await syncEngine.homeAssistantMatch(forEntityId: serial, homeId: homeId) {
+            if let match = try await syncEngine.homeAssistantMatch(forEntityId: serial, homeId: homeId, serverId: server.id) {
                 matchState = .matched(match)
             } else {
                 matchState = .noEntity
@@ -339,14 +329,14 @@ struct DeviceDetailContent: View {
             Section {
                 BridgeStatusRow(
                     title: "No Server Linked",
-                    message: "This device's home is not paired with a Home Assistant server, so nothing can be compared yet.",
+                    message: "No Home Assistant has been used with this home yet, so there is nothing to compare it against.",
                     systemImage: "link.badge.plus",
                     tint: .orange
                 )
             } header: {
                 Text(SyncPlatform.homeAssistant.name)
             } footer: {
-                Text("Link the home to a server in Settings.")
+                Text("Run a sync for this home once, and this page will use the same server.")
             }
 
         case .failed(let message):

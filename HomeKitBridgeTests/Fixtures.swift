@@ -6,6 +6,7 @@ import SwiftUI
 /// HomeKit or Home Assistant, so the screens render identically on every run.
 enum Fixtures {
     static let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample-long-lived-token-value"
+    static let referenceDate = Date(timeIntervalSince1970: 1_760_000_000)
 
     static let kitchenLight = AccessorySummary(
         id: "11111111-1111-1111-1111-111111111111",
@@ -78,7 +79,7 @@ enum Fixtures {
         name: "House",
         address: "http://homeassistant.local:8123",
         token: token,
-        linkedHomeIds: [home.id]
+        updatedAt: referenceDate
     )
 
     static let beachServer = HomeAssistantServer(
@@ -86,7 +87,7 @@ enum Fixtures {
         name: "Beach House",
         address: "http://beach.local:8123",
         token: token,
-        linkedHomeIds: [secondHome.id]
+        updatedAt: referenceDate
     )
 
     /// A server that has been added but never reached.
@@ -94,22 +95,40 @@ enum Fixtures {
         id: UUID(uuidString: "AAAAAAAA-0000-0000-0000-000000000003")!,
         name: "Studio",
         address: "http://studio.local:8123",
-        token: token
+        token: token,
+        updatedAt: referenceDate
     )
 
     static let connections: [ConnectionSummary] = [
-        ConnectionSummary(server: houseServer, state: .connected, linkedHomes: [home]),
-        ConnectionSummary(server: beachServer, state: .connected, linkedHomes: [secondHome])
+        ConnectionSummary(server: houseServer, state: .connected),
+        ConnectionSummary(server: beachServer, state: .connected)
     ]
 
     static let connectionsWithProblem: [ConnectionSummary] = [
-        ConnectionSummary(server: houseServer, state: .connected, linkedHomes: [home]),
+        ConnectionSummary(server: houseServer, state: .connected),
         ConnectionSummary(
             server: unreachableServer,
-            state: .failed("Home Assistant rejected the access token: Invalid access token"),
-            linkedHomes: []
+            state: .failed("Home Assistant rejected the access token: Invalid access token")
         )
     ]
+
+    // MARK: - Entities
+
+    static let entityAreas: [EntityArea] = [
+        EntityArea(name: "Cozinha", entities: [
+            EntitySummary(entityId: "light.kitchen_ceiling", name: "Kitchen Ceiling", state: "on"),
+            EntitySummary(entityId: "sensor.kitchen_temperature", name: "Kitchen Temperature", state: "21.4")
+        ]),
+        EntityArea(name: "Sala", entities: [
+            EntitySummary(entityId: "light.living_room", name: "Living Room", state: "off"),
+            EntitySummary(entityId: "media_player.tv", name: "Living Room TV", state: "playing")
+        ]),
+        EntityArea(name: EntityArea.unassignedName, entities: [
+            EntitySummary(entityId: "binary_sensor.hallway_motion", name: "Hallway Motion", state: "off")
+        ])
+    ]
+
+    static let tipProduct = TipProduct(displayName: "Tip the Developer", displayPrice: "€2.99")
 
     static let homeAssistantMatch = HomeAssistantMatch(
         entityId: "light.kitchen_ceiling",
@@ -137,6 +156,7 @@ enum Fixtures {
         id: UUID(uuidString: "DDDDDDDD-0000-0000-0000-000000000001")!,
         operation: .devicePlacementHAToHome,
         homeId: home.id,
+        serverId: houseServer.id,
         summary: SyncOperation.devicePlacementHAToHome.summary(changeCount: 2),
         changes: [
             SyncChange(
@@ -164,6 +184,7 @@ enum Fixtures {
         id: UUID(uuidString: "DDDDDDDD-0000-0000-0000-000000000002")!,
         operation: .deviceNamesHomeToHA,
         homeId: home.id,
+        serverId: houseServer.id,
         summary: SyncOperation.deviceNamesHomeToHA.summary(changeCount: 0),
         changes: []
     )
@@ -183,20 +204,20 @@ enum Fixtures {
             isEnabled: true,
             timeMinutes: 7 * 60 + 30,
             operationRawValue: SyncOperation.devicePlacementHAToHome.rawValue,
-            homeId: home.id
+            homeId: home.id,
+            serverId: houseServer.id
         ),
         ScheduledAction(
             id: UUID(uuidString: "EEEEEEEE-0000-0000-0000-000000000002")!,
             isEnabled: false,
             timeMinutes: 22 * 60,
             operationRawValue: SyncOperation.deviceNamesHomeToHA.rawValue,
-            homeId: home.id
+            homeId: home.id,
+            serverId: houseServer.id
         )
     ]
 
     // MARK: - Activity
-
-    private static let referenceDate = Date(timeIntervalSince1970: 1_760_000_000)
 
     static let logEntries: [LogEntry] = [
         LogEntry(

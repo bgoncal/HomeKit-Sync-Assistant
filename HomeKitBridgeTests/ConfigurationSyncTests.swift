@@ -176,14 +176,14 @@ final class ConnectionStoreCloudTests: XCTestCase {
     }
 
     func testTheConfigurationIsRestoredFromICloudOnAFreshDevice() {
-        let server = HomeAssistantServer(name: "House", address: "http://house.local:8123", linkedHomeIds: ["home-1"], updatedAt: Date())
+        let server = HomeAssistantServer(name: "House", address: "http://house.local:8123", updatedAt: Date())
         cloud.storage["homeAssistantConfiguration"] = try? JSONEncoder().encode(ConfigurationPayload(servers: [server]))
         tokens.setToken("secret-token", forServerId: server.id)
 
         let store = makeStore()
 
         XCTAssertEqual(store.servers.map(\.name), ["House"])
-        XCTAssertEqual(store.server(forHomeId: "home-1")?.token, "secret-token")
+        XCTAssertEqual(store.suggestedServer(forHomeId: "home-1")?.token, "secret-token")
     }
 
     func testDeletingAServerForgetsItsToken() {
