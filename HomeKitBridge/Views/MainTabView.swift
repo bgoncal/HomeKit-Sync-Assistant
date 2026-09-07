@@ -17,17 +17,15 @@ struct MainTabView: View {
             }
             .navigationTitle("Home Sync Assistant")
         } detail: {
-            NavigationStack {
-                selectedSectionView
-            }
-            .toolbar {
-                Button {
-                    isActivityPresented.toggle()
-                } label: {
-                    Label("Activity", systemImage: "clock")
+            selectedSectionView
+                .toolbar {
+                    Button {
+                        isActivityPresented.toggle()
+                    } label: {
+                        Label("Activity", systemImage: "clock")
+                    }
+                    .help("Show what the bridge has done")
                 }
-                .help("Show what the bridge has done")
-            }
         }
         .inspector(isPresented: $isActivityPresented) {
             NavigationStack {
@@ -37,7 +35,7 @@ struct MainTabView: View {
         }
         #else
         TabView {
-            NavigationStack { HomeView() }
+            HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
 
             NavigationStack { SyncView() }
@@ -54,11 +52,12 @@ struct MainTabView: View {
     private var selectedSectionView: some View {
         switch selectedSection ?? .home {
         case .home:
+            // HomeView brings its own stack; the others need one for their titles.
             HomeView()
         case .sync:
-            SyncView()
+            NavigationStack { SyncView() }
         case .actions:
-            ActionsView()
+            NavigationStack { ActionsView() }
         }
     }
     #endif

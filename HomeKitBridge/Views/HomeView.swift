@@ -18,7 +18,18 @@ struct HomeView: View {
         self.tipService = tipService ?? StoreKitTipService()
     }
 
+    @State private var path: [HomeRoute] = []
+
     var body: some View {
+        NavigationStack(path: $path) {
+            content
+        }
+        .task {
+            tipProduct = await tipService.product()
+        }
+    }
+
+    private var content: some View {
         HomeContent(
             homes: homeKitManager.homes,
             isHomeKitAuthorized: homeKitManager.isAuthorized,
@@ -28,6 +39,7 @@ struct HomeView: View {
             scheduleCount: scheduledActionManager.schedules.count,
             tipProduct: tipProduct,
             tipState: tipState,
+            onSelect: { path.append($0) },
             onRequestHomeKitAccess: { homeKitManager.requestAccess() },
             onTip: tip,
             onShowSetupAgain: { onboardingComplete = false }
@@ -37,7 +49,10 @@ struct HomeView: View {
             case .appleHomes:
                 AppleHomesContent(homes: homeKitManager.homes, isAuthorized: homeKitManager.isAuthorized)
             case .homeAssistants:
-                ServersContent(connections: connections.summaries)
+                ServersContent(
+                    connections: connections.summaries,
+                    onDelete: { connections.remove(serverId: $0.id) }
+                )
             case .home(let homeId):
                 HomeDevicesView(homeId: homeId)
             case .server(let serverId):
@@ -51,9 +66,6 @@ struct HomeView: View {
             case .scheduledActions:
                 ActionsView()
             }
-        }
-        .task {
-            tipProduct = await tipService.product()
         }
     }
 
@@ -98,6 +110,7 @@ struct HomeContent: View {
     var supportsScheduledActions: Bool = ScheduledActionManager.isSupported
     var tipProduct: TipProduct?
     var tipState: TipState = .idle
+    var onSelect: (HomeRoute) -> Void = { _ in }
     var onRequestHomeKitAccess: () -> Void = {}
     var onTip: () -> Void = {}
     var onShowSetupAgain: () -> Void = {}
@@ -119,7 +132,9 @@ struct HomeContent: View {
                         detail: homeAssistantDetail
                     )
                 }
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                // Zero insets: the section is already inset, and adding to it pushed
+                // this row further in than every card below it.
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 .listRowBackground(Color.clear)
             } footer: {
                 Text("Tap either side to see what it holds. You pick which pair to sync on the Sync screen.")
@@ -170,13 +185,12 @@ struct HomeContent: View {
 
     // MARK: Boxes
 
-    /// The link sits behind the box rather than around it: a `NavigationLink` label
-    /// in a list row draws its own chevron, and two of them in one row read as junk.
+    /// A button rather than a `NavigationLink`: a list row containing a link is a
+    /// single tap target, so two links in one row both open the first destination.
     private func box(route: HomeRoute, platform: SyncPlatform, headline: String, detail: String) -> some View {
-        ZStack {
-            NavigationLink(value: route) { EmptyView() }
-                .opacity(0)
-
+        Button {
+            onSelect(route)
+        } label: {
             SideBox(
                 title: platform.name,
                 systemImage: platform.symbolName,
@@ -185,6 +199,8 @@ struct HomeContent: View {
                 detail: detail
             )
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isButton)
     }
 
     private var appleHomeHeadline: String {
@@ -343,7 +359,7 @@ struct AppleHomesContent: View {
                     systemImage: "house",
                     description: Text(isAuthorized
                         ? "Open the Apple Home app once on this device, then come back."
-                        : "Allow access on the Home screen, then come back.")
+                        : "Allow access on the Home tab, then come back.")
                 )
             }
         }
@@ -353,29 +369,27 @@ struct AppleHomesContent: View {
 
 struct ServersContent: View {
     let connections: [ConnectionSummary]
+    var onDelete: (HomeAssistantServer) -> Void = { _ in }
+
+    /// Set while the confirmation is up, so a long press cannot delete by accident.
+    @State private var serverPendingDeletion: HomeAssistantServer?
 
     var body: some View {
         List {
             Section {
                 ForEach(connections) { connection in
                     NavigationLink(value: HomeRoute.server(connection.server.id)) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(connection.server.name)
-                                Spacer(minLength: 8)
-                                BridgePill(
-                                    title: connection.state.title,
-                                    systemImage: connection.state.isConnected ? "checkmark.circle.fill" : "circle.dashed",
-                                    tint: connection.state.isConnected ? .green : .secondary
-                                )
-                            }
-                            Text(connection.server.normalizedAddress.isEmpty ? "No address yet" : connection.server.normalizedAddress)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                        row(connection)
+                    }
+                    .contextMenu {
+                        Button("Delete Server", systemImage: "trash", role: .destructive) {
+                            serverPendingDeletion = connection.server
                         }
-                        .padding(.vertical, 2)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            serverPendingDeletion = connection.server
+                        }
                     }
                 }
 
@@ -383,10 +397,48 @@ struct ServersContent: View {
                     Label("Add Home Assistant", systemImage: "plus")
                 }
             } footer: {
-                Text("Open a server to browse its entities, or to change its address and token.")
+                Text("Open a server to browse its entities, or to change its address and token. Press and hold one to remove it.")
             }
         }
         .listStyle(.insetGrouped)
         .navigationTitle(SyncPlatform.homeAssistant.name)
+        .confirmationDialog(
+            serverPendingDeletion.map { "Delete “\($0.name)”?" } ?? "Delete this server?",
+            isPresented: Binding(
+                get: { serverPendingDeletion != nil },
+                set: { if !$0 { serverPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Server", role: .destructive) {
+                if let server = serverPendingDeletion {
+                    onDelete(server)
+                }
+                serverPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) { serverPendingDeletion = nil }
+        } message: {
+            Text("Its address and token are removed from this device and your other ones. Nothing changes in Home Assistant or in your home.")
+        }
+    }
+
+    private func row(_ connection: ConnectionSummary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(connection.server.name)
+                Spacer(minLength: 8)
+                BridgePill(
+                    title: connection.state.title,
+                    systemImage: connection.state.isConnected ? "checkmark.circle.fill" : "circle.dashed",
+                    tint: connection.state.isConnected ? .green : .secondary
+                )
+            }
+            Text(connection.server.normalizedAddress.isEmpty ? "No address yet" : connection.server.normalizedAddress)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.vertical, 2)
     }
 }
