@@ -22,6 +22,7 @@ which is why the listing says "your home app" rather than naming it.
 | Availability | 175 territories |
 | Screenshots | Four 6.7" iPhone shots, delivery COMPLETE |
 | In-app purchase | `com.hasync.tip`, consumable — name, description and review note set |
+| Privacy policy | https://docs.google.com/document/d/1-p0J8RKmV6EXyJNK6Bo0dR4PyoYJMj2oRcBkc8QXY5M/preview |
 
 ### Promotional text
 
@@ -35,13 +36,18 @@ API, and the requirement that accessories arrive through the Home Assistant brid
 
 ## Still open
 
-1. **Privacy policy URL** — required before submission. Bruno is sharing a publicly editable
-   document; the text to paste is in `privacy-policy.md` beside this file.
-2. **Tip price** — `com.hasync.tip` stays `MISSING_METADATA` until a price tier is chosen. That
+1. **Tip price** — `com.hasync.tip` stays `MISSING_METADATA` until a price tier is chosen. That
    is a business decision, so it was left alone.
-3. **macOS screenshots** — the Mac version record has none. `Scripts/capture-screenshots.sh`
+2. **macOS screenshots** — the Mac version record has none. `Scripts/capture-screenshots.sh`
    only renders the phone sizes; a Catalyst capture needs a Retina display.
-4. **Never submit for review from here.** That stays a human action.
+3. **Never submit for review from here.** That stays a human action.
+
+## The privacy policy
+
+`privacy-policy.md` beside this file is the source. It was pasted into Bruno's Google Doc
+through the browser (the recipe in `../../RELEASE_PLAYBOOK.md`) and read back paragraph by
+paragraph; the store points at the document's `/preview` URL, which resolves without a Google
+account. Edit the markdown first, then repeat the paste, so the two do not drift.
 
 ## Regenerating the screenshots
 
