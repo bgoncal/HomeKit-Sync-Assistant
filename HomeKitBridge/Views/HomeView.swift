@@ -176,6 +176,7 @@ struct HomeContent: View {
                 }
             }
 
+            setupSection
             supportSection
             aboutSection
         }
@@ -223,6 +224,18 @@ struct HomeContent: View {
         guard !connections.isEmpty else { return "Add your first one" }
         let connected = connections.filter(\.state.isConnected).count
         return connected == connections.count ? "All connected" : "\(connected) of \(connections.count) connected"
+    }
+
+    // MARK: Setup
+
+    private var setupSection: some View {
+        Section {
+            Button("Show Setup Guide Again", action: onShowSetupAgain)
+        } header: {
+            Text("Setup")
+        } footer: {
+            Text("Walks through how the two sides are paired, and where the address and token go.")
+        }
     }
 
     // MARK: Support
@@ -284,8 +297,6 @@ struct HomeContent: View {
                     Label("@bgoncal2 on X", systemImage: "at")
                 }
             }
-
-            Button("Show Setup Guide Again", action: onShowSetupAgain)
         } header: {
             Text("About")
         }
