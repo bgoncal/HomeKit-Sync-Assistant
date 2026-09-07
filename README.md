@@ -21,6 +21,23 @@ The setup guide walks through it: what the app syncs, how devices are paired, th
 HomeKit Bridge requirement, HomeKit permission, and your Home Assistant address plus a
 long-lived access token. You can run it again from Settings.
 
+## Licensing
+
+The code is under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). In short: use it,
+change it and share it for any **noncommercial** purpose — personal use, study, hobby projects,
+and noncommercial organisations. Selling it, or using it as part of something commercial, is not
+covered. If you need commercial terms, ask.
+
+Two things are **not** covered by that licence, so a fork stays clearly a fork:
+
+- The app name, **Home Sync Assistant**.
+- The app icon and artwork in `HomeKitBridge/AppIcon.icon`, and the store material under
+  `Metadata/` and `Screenshots/`.
+
+Contributions are welcome under the same licence: by opening a pull request you licence your
+contribution to the project owner under these terms, and agree it may be released under a
+different licence in future.
+
 ## Development
 
 - [AGENTS.md](AGENTS.md) — architecture, conventions, and how to run things.
