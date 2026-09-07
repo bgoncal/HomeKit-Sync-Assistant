@@ -21,7 +21,7 @@ which is why the listing says "your home app" rather than naming it.
 | Price | Free |
 | Availability | 175 territories |
 | Screenshots | Four 6.7" iPhone shots, delivery COMPLETE |
-| In-app purchase | `com.hasync.tip`, consumable — name, description and review note set |
+| In-app purchase | `com.hasync.tip`, consumable — `READY_TO_SUBMIT`: name, description, review note, price (0.99) and review screenshot |
 | Privacy policy | https://docs.google.com/document/d/1-p0J8RKmV6EXyJNK6Bo0dR4PyoYJMj2oRcBkc8QXY5M/preview |
 
 ### Promotional text
@@ -36,11 +36,17 @@ API, and the requirement that accessories arrive through the Home Assistant brid
 
 ## Still open
 
-1. **Tip price** — `com.hasync.tip` stays `MISSING_METADATA` until a price tier is chosen. That
-   is a business decision, so it was left alone.
-2. **macOS screenshots** — the Mac version record has none. `Scripts/capture-screenshots.sh`
-   only renders the phone sizes; a Catalyst capture needs a Retina display.
-3. **Never submit for review from here.** That stays a human action.
+1. **Nothing but the submit button, for iOS.** Text, screenshots, age rating, content rights,
+   price, availability, privacy policy and the tip product are all in place, and build 21 is
+   attached. Submitting stays a human action — never do it from here.
+2. **macOS is deferred.** Bruno is not releasing the Mac version for now, so its version record
+   is left in Prepare for Submission with no screenshots. Nothing to do until that changes.
+
+## The tip product
+
+`com.hasync.tip` is a consumable. It sat at `MISSING_METADATA` even after the price was set,
+because a first submission also needs a review screenshot; `Screenshots/01-home.png` was uploaded
+as that, since it shows the tip row and its price. It reads `READY_TO_SUBMIT` now.
 
 ## The privacy policy
 
