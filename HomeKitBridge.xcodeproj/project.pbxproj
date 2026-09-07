@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B1000027 /* ScreenshotCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000008 /* ScreenshotCaptureTests.swift */; };
 		A1000024 /* TipService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* TipService.swift */; };
 		A1000023 /* LocalAPIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025 /* LocalAPIView.swift */; };
 		A1000022 /* ServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024 /* ServerDetailView.swift */; };
@@ -63,6 +64,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXFileReference section */
+		B2000008 /* ScreenshotCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureTests.swift; sourceTree = "<group>"; };
 		A2000026 /* TipService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipService.swift; sourceTree = "<group>"; };
 		A2000025 /* LocalAPIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAPIView.swift; sourceTree = "<group>"; };
 		A2000024 /* ServerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDetailView.swift; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 				B2000005 /* ConfigurationTests.swift */,
 				B2000006 /* ConnectionStoreTests.swift */,
 				B2000007 /* ConfigurationSyncTests.swift */,
+				B2000008 /* ScreenshotCaptureTests.swift */,
 			);
 			path = HomeKitBridgeTests;
 			sourceTree = "<group>";
@@ -347,6 +350,7 @@
 				B1000024 /* ConfigurationTests.swift in Sources */,
 				B1000025 /* ConnectionStoreTests.swift in Sources */,
 				B1000026 /* ConfigurationSyncTests.swift in Sources */,
+				B1000027 /* ScreenshotCaptureTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
