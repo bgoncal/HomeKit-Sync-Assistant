@@ -309,6 +309,23 @@ final class SettingsSnapshotTests: SnapshotTestCase {
         )
     }
 
+    func testWithoutICloud() {
+        assertScreen(
+            NavigationStack {
+                SettingsContent(
+                    connections: Fixtures.connections,
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    isSyncingWithCloud: false,
+                    serverPort: .constant(8400),
+                    autoStartServer: .constant(true),
+                    isServerRunning: true,
+                    supportsScheduledActions: false
+                )
+            },
+            named: "settings-no-icloud"
+        )
+    }
+
     func testNoServersYet() {
         assertScreen(
             NavigationStack {

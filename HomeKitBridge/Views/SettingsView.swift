@@ -28,6 +28,7 @@ struct SettingsView: View {
         SettingsContent(
             connections: connections.summaries(homes: homeKitManager.homes),
             homes: homeKitManager.homes,
+            isSyncingWithCloud: connections.isSyncingWithCloud,
             serverPort: $serverPort,
             autoStartServer: $autoStartServer,
             isServerRunning: server.isRunning,
@@ -73,6 +74,8 @@ struct SettingsView: View {
 struct SettingsContent: View {
     let connections: [ConnectionSummary]
     let homes: [HomeSummary]
+    /// Whether the servers and pairings are shared with the person's other devices.
+    var isSyncingWithCloud: Bool = true
     @Binding var serverPort: Int
     @Binding var autoStartServer: Bool
     let isServerRunning: Bool
@@ -112,10 +115,19 @@ struct SettingsContent: View {
         } header: {
             Text(SyncPlatform.homeAssistant.name)
         } footer: {
-            Text(connections.isEmpty
-                 ? "Add the Home Assistant you want to keep in sync. You can add more than one."
-                 : "Each server keeps its own address and token. Open one to change them or to choose which Apple Homes it serves.")
+            Text(serversFooter)
         }
+    }
+
+    private var serversFooter: String {
+        let sharing = isSyncingWithCloud
+            ? "Servers, addresses and pairings follow you to your other devices through iCloud, and tokens through your iCloud keychain."
+            : "iCloud is unavailable, so this configuration stays on this device. Sign in to iCloud to share it with your other devices."
+
+        if connections.isEmpty {
+            return "Add the Home Assistant you want to keep in sync. You can add more than one. \(sharing)"
+        }
+        return "Each server keeps its own address and token. Open one to change them or to choose which Apple Homes it serves. \(sharing)"
     }
 
     private func serverRow(_ connection: ConnectionSummary) -> some View {

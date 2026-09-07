@@ -20,7 +20,10 @@ struct HomeKitBridgeApp: App {
     init() {
         let homeKit = HomeKitManager()
         let logs = LogStore()
-        let connections = ConnectionStore()
+        let connections = ConnectionStore(
+            cloud: UbiquitousConfigurationSyncStore(),
+            tokens: KeychainTokenStore()
+        )
         _homeKitManager = StateObject(wrappedValue: homeKit)
         _logStore = StateObject(wrappedValue: logs)
         _connections = StateObject(wrappedValue: connections)

@@ -36,6 +36,9 @@ Rules that are easy to break:
   Anything Home Assistant-shaped takes a `homeId`.
 - A home is paired with exactly one server; linking it elsewhere unlinks it here.
 - A single server with no links serves every home (that is what an upgrade looks like).
+- The configuration is shared through iCloud: records in `NSUbiquitousKeyValueStore`,
+  tokens in the synchronizable keychain. Merge with `ConfigurationPayload.merged`
+  rather than overwriting, and let `ConnectionStore` stamp `updatedAt`.
 - Scheduled syncs exist on the Mac only — gate on `ScheduledActionManager.isSupported`,
   never on `#if DEBUG` or a runtime setting.
 

@@ -141,24 +141,36 @@ struct SyncContent: View {
             }
 
             Picker("Sync", selection: $operation) {
-                Section(SyncDirection.homeAssistantToAppleHome.label) {
-                    ForEach(SyncOperation.allCases.filter { $0.direction == .homeAssistantToAppleHome }) { operation in
-                        Text(operation.shortTitle).tag(operation)
-                    }
-                }
-                Section(SyncDirection.appleHomeToHomeAssistant.label) {
-                    ForEach(SyncOperation.allCases.filter { $0.direction == .appleHomeToHomeAssistant }) { operation in
-                        Text(operation.shortTitle).tag(operation)
-                    }
+                ForEach(SyncSubject.allCases) { subject in
+                    Text(subject.title).tag(operation.direction.operation(for: subject))
                 }
             }
             .disabled(isWorking)
 
-            LabeledContent {
-                BridgeDirectionBadge(direction: operation.direction)
+            // One tap turns the sync around; the direction is the thing people get
+            // wrong, so it is a control, not a label.
+            Button {
+                operation = operation.inverted
             } label: {
-                Text("Direction")
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        BridgeDirectionBadge(direction: operation.direction)
+                        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
+                    }
+                } label: {
+                    Text("Direction")
+                        .foregroundStyle(.primary)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(isWorking)
+            .accessibilityLabel("Direction: from \(operation.direction.source.name) to \(operation.direction.destination.name)")
+            .accessibilityHint("Double tap to sync the other way")
+            .accessibilityAddTraits(.isButton)
 
             Text(operation.displayTitle)
                 .font(.subheadline.weight(.semibold))

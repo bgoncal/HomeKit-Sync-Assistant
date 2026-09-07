@@ -35,6 +35,7 @@ HomeKitBridge/
     HTTPServer.swift            Local HTTP API (Network framework) + BridgeError
     LogStore.swift              In-app log buffer
     ScheduledActionManager.swift
+  AppIcon.icon               Icon Composer document — the only icon source
   Views/                     SwiftUI views
     BridgeUI.swift             Shared rows and pills (BridgeStatusRow, BridgePill, …)
     MainTabView.swift, *View.swift
@@ -62,6 +63,35 @@ The app talks to **several Home Assistant servers** and **several Apple Homes**.
 - Screens group connection settings **per item**: one section per server on the
   Dashboard, one row per server in Settings with a detail screen behind it, and a
   per-home picker for the pairing.
+
+### Sharing the configuration between devices
+
+The servers and their pairings follow the person to their other devices:
+
+- `ConfigurationPayload` (servers + deletion tombstones) is written to `UserDefaults`
+  **and** to `NSUbiquitousKeyValueStore`, and merged on launch and whenever iCloud
+  reports an external change. `ConfigurationPayload.merged` is pure and unit-tested:
+  newest `updatedAt` wins per id, a deletion wins unless the record was edited after
+  it, and merging is order-independent.
+- **Tokens never travel in that payload.** They live in the keychain marked
+  `kSecAttrSynchronizable`, so they move through the iCloud keychain, which is
+  end-to-end encrypted. `HomeAssistantServer.encode(to:)` deliberately omits the
+  token; the decoder still reads it so older local data migrates.
+- Any mutation goes through `ConnectionStore`, which stamps `updatedAt`. Do not write
+  `servers` from outside, and do not add the token to `CodingKeys` on the encode side.
+- The store exposes `isSyncingWithCloud`; Settings says plainly when iCloud is
+  unavailable and the configuration is staying on the device.
+- The entitlement is `com.apple.developer.ubiquity-kvstore-identifier`; the App ID
+  needs the iCloud capability.
+
+## The app icon
+
+`HomeKitBridge/AppIcon.icon` (Icon Composer) is the single source, shared with the
+HA-Home app. There is no `AppIcon.appiconset`: actool rasterises every legacy size
+from the `.icon`, and a second icon set only competes with it. The target's
+**Resources build phase** is what puts it in the bundle — without it the archive has
+no icon and App Store Connect refuses the build, which is what `AppResourcesTests`
+guards.
 
 ## Platform differences
 

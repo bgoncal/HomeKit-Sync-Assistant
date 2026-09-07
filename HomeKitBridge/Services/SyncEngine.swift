@@ -50,13 +50,27 @@ enum SyncDirection: String, Codable {
     var explanation: String {
         "Reads from \(source.name). Only \(destination.name) is changed."
     }
+
+    /// The operation that syncs one subject in this direction.
+    func operation(for subject: SyncSubject) -> SyncOperation {
+        switch (subject, self) {
+        case (.rooms, .homeAssistantToAppleHome): return .roomsHAToHome
+        case (.rooms, .appleHomeToHomeAssistant): return .roomsHomeToHA
+        case (.placement, .homeAssistantToAppleHome): return .devicePlacementHAToHome
+        case (.placement, .appleHomeToHomeAssistant): return .devicePlacementHomeToHA
+        case (.names, .homeAssistantToAppleHome): return .deviceNamesHAToHome
+        case (.names, .appleHomeToHomeAssistant): return .deviceNamesHomeToHA
+        }
+    }
 }
 
 /// What a sync operation keeps aligned.
-enum SyncSubject: String, Codable {
+enum SyncSubject: String, CaseIterable, Identifiable, Codable {
     case rooms
     case placement
     case names
+
+    var id: String { rawValue }
 
     var title: String {
         switch self {
@@ -100,6 +114,19 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
         case "Sync Names: HA → Apple Home": return .deviceNamesHAToHome
         case "Sync Names: Apple Home → HA": return .deviceNamesHomeToHA
         default: return nil
+        }
+    }
+
+    /// The same thing to sync, the other way round. This is what the swap control
+    /// on the Sync screen does, and it is always a valid operation.
+    var inverted: SyncOperation {
+        switch self {
+        case .roomsHAToHome: return .roomsHomeToHA
+        case .roomsHomeToHA: return .roomsHAToHome
+        case .devicePlacementHAToHome: return .devicePlacementHomeToHA
+        case .devicePlacementHomeToHA: return .devicePlacementHAToHome
+        case .deviceNamesHAToHome: return .deviceNamesHomeToHA
+        case .deviceNamesHomeToHA: return .deviceNamesHAToHome
         }
     }
 

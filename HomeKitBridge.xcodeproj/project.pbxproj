@@ -15,6 +15,7 @@
 		B1000023 /* ScreenSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004 /* ScreenSnapshotTests.swift */; };
 		B1000024 /* ConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* ConfigurationTests.swift */; };
 		B1000025 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000006 /* ConnectionStoreTests.swift */; };
+		B1000026 /* ConfigurationSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007 /* ConfigurationSyncTests.swift */; };
 		B1000030 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = B5000001 /* SnapshotTesting */; };
 		9AEAAAF53003F9B700CCABBB /* EndpointsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */; };
 		9AEAAAF73003FA3300CCABBB /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF63003FA3300CCABBB /* DevicesView.swift */; };
@@ -23,6 +24,7 @@
 		9AEAAAFD30040D0F00CCABBB /* ActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEAAAFC30040D0F00CCABBB /* ActionsView.swift */; };
 		A1000015 /* HomeAssistantServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019 /* HomeAssistantServer.swift */; };
 		A1000016 /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* ConnectionStore.swift */; };
+		A1000019 /* ConfigurationSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021 /* ConfigurationSync.swift */; };
 		A1000001 /* HomeKitBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* HomeKitBridgeApp.swift */; };
 		A1000014 /* HomeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* HomeModels.swift */; };
 		A1000002 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* MainTabView.swift */; };
@@ -64,6 +66,7 @@
 		B2000004 /* ScreenSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenSnapshotTests.swift; sourceTree = "<group>"; };
 		B2000005 /* ConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationTests.swift; sourceTree = "<group>"; };
 		B2000006 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
+		B2000007 /* ConfigurationSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationSyncTests.swift; sourceTree = "<group>"; };
 		B2000010 /* HomeKitBridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HomeKitBridgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9AEAAAF33003F22300CCABBB /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		9AEAAAF43003F9B700CCABBB /* EndpointsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsView.swift; sourceTree = "<group>"; };
@@ -74,6 +77,7 @@
 		9AEAAAFE30040E2D00CCABBB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000019 /* HomeAssistantServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeAssistantServer.swift; sourceTree = "<group>"; };
 		A2000020 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
+		A2000021 /* ConfigurationSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationSync.swift; sourceTree = "<group>"; };
 		A2000001 /* HomeKitBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitBridgeApp.swift; sourceTree = "<group>"; };
 		A2000002 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A2000003 /* HomeKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitManager.swift; sourceTree = "<group>"; };
@@ -160,6 +164,7 @@
 			children = (
 				A2000003 /* HomeKitManager.swift */,
 				A2000020 /* ConnectionStore.swift */,
+				A2000021 /* ConfigurationSync.swift */,
 				A2000004 /* HTTPServer.swift */,
 				A2000008 /* LogStore.swift */,
 				A2000009 /* SyncEngine.swift */,
@@ -195,6 +200,7 @@
 				B2000004 /* ScreenSnapshotTests.swift */,
 				B2000005 /* ConfigurationTests.swift */,
 				B2000006 /* ConnectionStoreTests.swift */,
+				B2000007 /* ConfigurationSyncTests.swift */,
 			);
 			path = HomeKitBridgeTests;
 			sourceTree = "<group>";
@@ -295,6 +301,7 @@
 			files = (
 				A1000001 /* HomeKitBridgeApp.swift in Sources */,
 				A1000016 /* ConnectionStore.swift in Sources */,
+				A1000019 /* ConfigurationSync.swift in Sources */,
 				A1000015 /* HomeAssistantServer.swift in Sources */,
 				A1000002 /* MainTabView.swift in Sources */,
 				9AEAAAFB300408F000CCABBB /* ScheduledActionManager.swift in Sources */,
@@ -327,6 +334,7 @@
 				B1000023 /* ScreenSnapshotTests.swift in Sources */,
 				B1000024 /* ConfigurationTests.swift in Sources */,
 				B1000025 /* ConnectionStoreTests.swift in Sources */,
+				B1000026 /* ConfigurationSyncTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

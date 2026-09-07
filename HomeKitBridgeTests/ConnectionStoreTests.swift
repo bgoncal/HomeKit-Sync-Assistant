@@ -5,11 +5,13 @@ import XCTest
 final class ConnectionStoreTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
+    private var tokens: InMemoryTokenStore!
 
     override func setUp() {
         super.setUp()
         suiteName = "ConnectionStoreTests-\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
+        tokens = InMemoryTokenStore()
     }
 
     override func tearDown() {
@@ -19,15 +21,15 @@ final class ConnectionStoreTests: XCTestCase {
     }
 
     func testAddedServersSurviveAReload() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         store.add(HomeAssistantServer(name: "House", address: "http://house.local:8123", token: String(repeating: "a", count: 40)))
 
-        let reloaded = ConnectionStore(defaults: defaults)
+        let reloaded = ConnectionStore(defaults: defaults, tokens: tokens)
         XCTAssertEqual(reloaded.servers.map(\.name), ["House"])
     }
 
     func testASecondServerGetsItsOwnDefaultName() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         store.add(HomeAssistantServer(name: ""))
         store.add(HomeAssistantServer(name: ""))
 
@@ -35,7 +37,7 @@ final class ConnectionStoreTests: XCTestCase {
     }
 
     func testAHomeBelongsToOnlyOneServer() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         let house = store.add(HomeAssistantServer(name: "House", linkedHomeIds: ["home-1"]))
         let beach = store.add(HomeAssistantServer(name: "Beach"))
 
@@ -46,7 +48,7 @@ final class ConnectionStoreTests: XCTestCase {
     }
 
     func testLinkingThroughUpdateAlsoTakesTheHomeOffTheOtherServer() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         let house = store.add(HomeAssistantServer(name: "House", linkedHomeIds: ["home-1"]))
         var beach = store.add(HomeAssistantServer(name: "Beach"))
 
@@ -58,7 +60,7 @@ final class ConnectionStoreTests: XCTestCase {
     }
 
     func testUnlinkingLeavesTheHomeWithoutAServer() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         let house = store.add(HomeAssistantServer(name: "House", linkedHomeIds: ["home-1"]))
         store.add(HomeAssistantServer(name: "Beach"))
 
@@ -71,14 +73,14 @@ final class ConnectionStoreTests: XCTestCase {
     /// An upgrade from the one-server version has no links yet, and everything
     /// should keep working until someone sets them.
     func testASingleUnlinkedServerStillServesEveryHome() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         store.add(HomeAssistantServer(name: "House"))
 
         XCTAssertEqual(store.server(forHomeId: "any-home")?.name, "House")
     }
 
     func testWithTwoServersAnUnlinkedHomeHasNone() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         store.add(HomeAssistantServer(name: "House", linkedHomeIds: ["home-1"]))
         store.add(HomeAssistantServer(name: "Beach", linkedHomeIds: ["home-2"]))
 
@@ -89,7 +91,7 @@ final class ConnectionStoreTests: XCTestCase {
         defaults.set("http://homeassistant.local:8123", forKey: "haURL")
         defaults.set(String(repeating: "a", count: 40), forKey: "haToken")
 
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
 
         XCTAssertEqual(store.servers.count, 1)
         XCTAssertEqual(store.servers.first?.address, "http://homeassistant.local:8123")
@@ -102,19 +104,19 @@ final class ConnectionStoreTests: XCTestCase {
         defaults.set("http://homeassistant.local:8123", forKey: "haURL")
         defaults.set(String(repeating: "a", count: 40), forKey: "haToken")
 
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         store.remove(serverId: store.servers[0].id)
 
-        let reloaded = ConnectionStore(defaults: defaults)
+        let reloaded = ConnectionStore(defaults: defaults, tokens: tokens)
         XCTAssertTrue(reloaded.servers.isEmpty)
     }
 
     func testNothingIsMigratedWhenThereWasNoOldServer() {
-        XCTAssertTrue(ConnectionStore(defaults: defaults).servers.isEmpty)
+        XCTAssertTrue(ConnectionStore(defaults: defaults, tokens: tokens).servers.isEmpty)
     }
 
     func testRemovingAServerDropsItsLinks() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         let house = store.add(HomeAssistantServer(name: "House", linkedHomeIds: ["home-1"]))
         store.add(HomeAssistantServer(name: "Beach", linkedHomeIds: ["home-2"]))
 
@@ -125,7 +127,7 @@ final class ConnectionStoreTests: XCTestCase {
     }
 
     func testSummariesGroupHomesUnderTheirServer() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         store.add(HomeAssistantServer(name: "House", linkedHomeIds: [Fixtures.home.id]))
         store.add(HomeAssistantServer(name: "Beach", linkedHomeIds: [Fixtures.secondHome.id]))
 
@@ -138,7 +140,7 @@ final class ConnectionStoreTests: XCTestCase {
     }
 
     func testLinkAllHomesLeavesExistingPairingsAlone() {
-        let store = ConnectionStore(defaults: defaults)
+        let store = ConnectionStore(defaults: defaults, tokens: tokens)
         let house = store.add(HomeAssistantServer(name: "House", linkedHomeIds: ["home-1"]))
         let beach = store.add(HomeAssistantServer(name: "Beach"))
 
