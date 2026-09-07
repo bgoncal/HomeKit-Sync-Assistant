@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9AEAAAFE30040E2D00CCABBB /* Assets.xcassets */; };
+		A1000018 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 9AEAAAF33003F22300CCABBB /* AppIcon.icon */; };
 		B1000020 /* SnapshotSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* SnapshotSupport.swift */; };
 		B1000021 /* Fixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* Fixtures.swift */; };
 		B1000022 /* OnboardingSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* OnboardingSnapshotTests.swift */; };
@@ -70,7 +72,6 @@
 		9AEAAAFA300408F000CCABBB /* ScheduledActionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledActionManager.swift; sourceTree = "<group>"; };
 		9AEAAAFC30040D0F00CCABBB /* ActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsView.swift; sourceTree = "<group>"; };
 		9AEAAAFE30040E2D00CCABBB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		9AEAAAFF30040EB100CCABBB /* Assets 2.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets 2.xcassets"; sourceTree = "<group>"; };
 		A2000019 /* HomeAssistantServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeAssistantServer.swift; sourceTree = "<group>"; };
 		A2000020 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
 		A2000001 /* HomeKitBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitBridgeApp.swift; sourceTree = "<group>"; };
@@ -131,7 +132,6 @@
 				A2000006 /* Info.plist */,
 				9AEAAAF33003F22300CCABBB /* AppIcon.icon */,
 				9AEAAAFE30040E2D00CCABBB /* Assets.xcassets */,
-				9AEAAAFF30040EB100CCABBB /* Assets 2.xcassets */,
 			);
 			path = HomeKitBridge;
 			sourceTree = "<group>";
@@ -208,6 +208,7 @@
 			buildPhases = (
 				A6000001 /* Sources */,
 				A3000001 /* Frameworks */,
+				A6000002 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -274,6 +275,18 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A6000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000017 /* Assets.xcassets in Resources */,
+				A1000018 /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A6000001 /* Sources */ = {

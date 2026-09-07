@@ -92,9 +92,18 @@ final class HomeKitManager: NSObject, ObservableObject {
         return home(byId: homeId)?.accessories
     }
 
+    /// The HAP serial-number characteristic.
+    ///
+    /// `HMCharacteristicTypeSerialNumber` was deprecated in iOS 11 ("no longer
+    /// supported"), but accessories still publish the characteristic and the Home
+    /// Assistant HomeKit Bridge still writes the entity ID into it — which is the
+    /// whole pairing mechanism this app relies on. So the type is matched by its
+    /// stable HAP UUID instead of the deprecated constant.
+    private static let serialNumberCharacteristicType = "00000030-0000-1000-8000-0026BB765291"
+
     private func readSerialNumber(from accessory: HMAccessory) async -> String {
         guard let infoService = accessory.services.first(where: { $0.serviceType == HMServiceTypeAccessoryInformation }),
-              let serialCharacteristic = infoService.characteristics.first(where: { $0.characteristicType == HMCharacteristicTypeSerialNumber }) else {
+              let serialCharacteristic = infoService.characteristics.first(where: { $0.characteristicType == Self.serialNumberCharacteristicType }) else {
             return ""
         }
 

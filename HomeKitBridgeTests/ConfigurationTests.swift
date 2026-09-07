@@ -78,3 +78,35 @@ final class AccessorySummaryTests: XCTestCase {
         XCTAssertNil(AccessorySummary(name: "Lock").entityId)
     }
 }
+
+/// The app once archived without an asset catalog at all: the target had no
+/// Resources build phase, so App Store Connect refused every build for having no
+/// icon. These assertions run against the host app's real bundle.
+final class AppResourcesTests: XCTestCase {
+    func testTheAppBundleCarriesItsCompiledAssets() {
+        XCTAssertNotNil(
+            Bundle.main.url(forResource: "Assets", withExtension: "car"),
+            "The asset catalog is missing from the bundle — check the Resources build phase."
+        )
+    }
+
+    func testTheAppBundleDeclaresAnIcon() {
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleIconName") as? String, "AppIcon")
+
+        #if targetEnvironment(macCatalyst)
+        // A Mac bundle carries the icon as a compiled .icns next to the assets.
+        XCTAssertNotNil(
+            Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+            "No icon was compiled into the Mac bundle; App Store Connect rejects builds without one."
+        )
+        #else
+        let icons = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any]
+        let primary = icons?["CFBundlePrimaryIcon"] as? [String: Any]
+        let files = primary?["CFBundleIconFiles"] as? [String]
+        XCTAssertFalse(
+            files?.isEmpty ?? true,
+            "No icon was compiled into the bundle; App Store Connect rejects builds without one."
+        )
+        #endif
+    }
+}
