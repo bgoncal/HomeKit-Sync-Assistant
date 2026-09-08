@@ -1,3 +1,5 @@
+[![Download on the App Store](https://github.com/user-attachments/assets/1584f947-d257-49cc-af08-8d72aeabe40c)](https://apps.apple.com/br/app/home-sync-assistant/id6790157317?l=en-GB)
+
 # Home Sync Assistant
 
 A SwiftUI app for iPhone, iPad, and Mac (via Mac Catalyst) that keeps **Apple Home** and
