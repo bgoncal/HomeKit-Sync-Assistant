@@ -1,6 +1,6 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.19203,0.12716,0.61094,1.00000"
+    "automatic-gradient" : "srgb:1.00000,1.00000,1.00000,1.00000"
   },
   "groups" : [
     {
@@ -14,8 +14,21 @@
           "position" : {
             "scale" : 2.5,
             "translation-in-points" : [
-              0,
-              0
+              -57,
+              1.740000000000009
+            ]
+          }
+        },
+        {
+          "glass" : true,
+          "image-name" : "house-angle 2.png",
+          "name" : "house-angle 2",
+          "opacity" : 0.63,
+          "position" : {
+            "scale" : 2.31,
+            "translation-in-points" : [
+              50,
+              -27
             ]
           }
         }
