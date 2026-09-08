@@ -1,5 +1,7 @@
 [![Download on the App Store](https://github.com/user-attachments/assets/1584f947-d257-49cc-af08-8d72aeabe40c)](https://apps.apple.com/br/app/home-sync-assistant/id6790157317?l=en-GB)
 
+<a href="https://www.buymeacoffee.com/Bgoncal" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me a Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
 # Home Sync Assistant
 
 A SwiftUI app for iPhone, iPad, and Mac (via Mac Catalyst) that keeps **Apple Home** and
