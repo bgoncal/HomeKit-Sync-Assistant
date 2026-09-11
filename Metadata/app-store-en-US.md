@@ -58,10 +58,9 @@ account. Edit the markdown first, then repeat the paste, so the two do not drift
 ## Regenerating the screenshots
 
 `Scripts/capture-screenshots.sh` renders the real screens with the test fixtures into
-`../Screenshots/`: phone shots at 1290×2796 (`01-`…`04-`) and iPad at 2048×2732 (`pad-01-`…).
-Upload each set to its own display type:
-
-```python
-asc_write.upload_screenshots(T, app, 'IOS', 'APP_IPHONE_67', phone_files, replace=True)
-asc_write.upload_screenshots(T, app, 'IOS', 'APP_IPAD_PRO_3GEN_129', pad_files, replace=True)
-```
+`../Docs/app-store/iphone/` (6.9", 1320×2868) and `../Docs/app-store/ipad/` (13", 2064×2752),
+one class per simulator. Those raw captures are never uploaded: Vitrine frames them into
+`../Docs/app-store/framed/<platform>/<WxH>/` with the captions in `../Docs/app-store/COPY.md`,
+and the framed folders are what goes to each display type (see the `apple-app-release` skill,
+"Store screenshots"). The older bare 6.7"/12.9" set in `../Screenshots/` is what the listing
+held before 2026-09-11 and what the tip product's review screenshot was taken from.

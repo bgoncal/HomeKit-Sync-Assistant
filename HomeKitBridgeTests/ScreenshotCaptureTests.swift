@@ -2,183 +2,130 @@ import SwiftUI
 import XCTest
 @testable import HomeKitBridge
 
-/// Writes store-ready screenshots instead of comparing them.
+/// Writes raw store captures instead of comparing them.
 ///
-/// These render the same screens the snapshot tests do, at 6.7" and 3x, straight
-/// into `Screenshots/` in the repository. Skipped on Mac Catalyst, where the
-/// sandbox rules out writing there.
+/// These render the same screens the snapshot tests do, at the native size App Store
+/// Connect wants for the largest phone and the largest tablet, straight into
+/// `Docs/app-store/<device>/` in the repository. `Scripts/capture-screenshots.sh`
+/// runs one class per simulator; Vitrine frames the result and derives every other
+/// size. Skipped on Mac Catalyst, where the sandbox rules out writing there.
+///
+/// The screens are shared by both classes so the two sets tell the same story in
+/// the same order.
+enum StoreScreens {
+    struct Screen {
+        let name: String
+        let view: AnyView
+    }
+
+    @MainActor
+    static var all: [Screen] {
+        [
+            Screen(name: "01-home", view: AnyView(NavigationStack {
+                HomeContent(
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    isHomeKitAuthorized: true,
+                    connections: Fixtures.connections,
+                    isServerRunning: true,
+                    serverPort: 8400,
+                    supportsScheduledActions: false,
+                    tipProduct: Fixtures.tipProduct
+                )
+            })),
+            Screen(name: "02-sync", view: AnyView(NavigationStack {
+                SyncContent(
+                    homes: [Fixtures.home, Fixtures.secondHome],
+                    servers: [Fixtures.houseServer, Fixtures.beachServer],
+                    homeId: .constant(Fixtures.home.id),
+                    serverId: .constant(Fixtures.houseServer.id),
+                    direction: .constant(.homeAssistantToAppleHome),
+                    subject: .constant(.placement),
+                    dryRunResult: Fixtures.placementPreview,
+                    progress: nil,
+                    errorMessage: nil,
+                    isWorking: false
+                )
+            })),
+            Screen(name: "03-devices", view: AnyView(NavigationStack {
+                HomeDevicesContent(home: Fixtures.home, search: .constant(""))
+            })),
+            Screen(name: "04-entities", view: AnyView(NavigationStack {
+                EntitiesContent(
+                    serverName: Fixtures.houseServer.name,
+                    serverId: Fixtures.houseServer.id,
+                    areas: Fixtures.entityAreas,
+                    search: .constant("")
+                )
+            })),
+            Screen(name: "05-device", view: AnyView(NavigationStack {
+                DeviceDetailContent(
+                    accessory: Fixtures.kitchenLight,
+                    matchState: .matched(Fixtures.homeAssistantMatch),
+                    serverName: Fixtures.houseServer.name
+                )
+            })),
+            Screen(name: "06-activity", view: AnyView(NavigationStack {
+                LogsContent(
+                    entries: Fixtures.logEntries,
+                    search: .constant(""),
+                    selectedCategory: .constant(.all)
+                )
+            })),
+        ]
+    }
+}
+
+/// 6.9" phone — 440 × 956 points at 3x, the 1320 × 2868 App Store Connect wants.
 @MainActor
-final class ScreenshotCaptureTests: SnapshotTestCase {
-    /// 6.7" portrait — 430 × 932 points at 3x, the size App Store Connect expects.
-    private let size = CGSize(width: 430, height: 932)
-    private let scale: CGFloat = 3
-
-    /// 12.9" iPad portrait — 1024 × 1366 at 2x, which is the 2048 × 2732 the store wants.
-    private let padSize = CGSize(width: 1024, height: 1366)
-    private let padScale: CGFloat = 2
-
-    func testCaptureHomeScreen() throws {
-        try captureIsEnabled()
-
-        try capture(
-            NavigationStack {
-                HomeContent(
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    isHomeKitAuthorized: true,
-                    connections: Fixtures.connections,
-                    isServerRunning: true,
-                    serverPort: 8400,
-                    supportsScheduledActions: false,
-                    tipProduct: Fixtures.tipProduct
-                )
-            },
-            named: "01-home"
-        )
+final class PhoneScreenshotCaptureTests: SnapshotTestCase {
+    func testCaptureEveryScreen() throws {
+        try StoreCapture.captureIsEnabled()
+        for screen in StoreScreens.all {
+            try StoreCapture.capture(
+                screen.view,
+                named: screen.name,
+                device: "iphone",
+                size: CGSize(width: 440, height: 956),
+                scale: 3
+            )
+        }
     }
+}
 
-    func testCaptureSyncScreen() throws {
-        try captureIsEnabled()
-
-        try capture(
-            NavigationStack {
-                SyncContent(
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    servers: [Fixtures.houseServer, Fixtures.beachServer],
-                    homeId: .constant(Fixtures.home.id),
-                    serverId: .constant(Fixtures.houseServer.id),
-                    direction: .constant(.homeAssistantToAppleHome),
-                    subject: .constant(.placement),
-                    dryRunResult: Fixtures.placementPreview,
-                    progress: nil,
-                    errorMessage: nil,
-                    isWorking: false
-                )
-            },
-            named: "02-sync"
-        )
+/// 13" tablet — 1032 × 1376 points at 2x, the 2064 × 2752 App Store Connect wants.
+@MainActor
+final class PadScreenshotCaptureTests: SnapshotTestCase {
+    func testCaptureEveryScreen() throws {
+        try StoreCapture.captureIsEnabled()
+        for screen in StoreScreens.all {
+            try StoreCapture.capture(
+                screen.view,
+                named: screen.name,
+                device: "ipad",
+                size: CGSize(width: 1032, height: 1376),
+                scale: 2
+            )
+        }
     }
+}
 
-    func testCaptureEntitiesScreen() throws {
-        try captureIsEnabled()
+// MARK: - Plumbing
 
-        try capture(
-            NavigationStack {
-                EntitiesContent(
-                    serverName: Fixtures.houseServer.name,
-                    serverId: Fixtures.houseServer.id,
-                    areas: Fixtures.entityAreas,
-                    search: .constant("")
-                )
-            },
-            named: "03-entities"
-        )
-    }
-
-    func testCaptureDevicesScreen() throws {
-        try captureIsEnabled()
-
-        try capture(
-            NavigationStack {
-                HomeDevicesContent(home: Fixtures.home, search: .constant(""))
-            },
-            named: "04-devices"
-        )
-    }
-
-    // MARK: - iPad
-
-    func testCaptureHomeScreenOnPad() throws {
-        try captureIsEnabled()
-
-        try capture(
-            NavigationStack {
-                HomeContent(
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    isHomeKitAuthorized: true,
-                    connections: Fixtures.connections,
-                    isServerRunning: true,
-                    serverPort: 8400,
-                    supportsScheduledActions: false,
-                    tipProduct: Fixtures.tipProduct
-                )
-            },
-            named: "pad-01-home",
-            size: padSize,
-            scale: padScale
-        )
-    }
-
-    func testCaptureSyncScreenOnPad() throws {
-        try captureIsEnabled()
-
-        try capture(
-            NavigationStack {
-                SyncContent(
-                    homes: [Fixtures.home, Fixtures.secondHome],
-                    servers: [Fixtures.houseServer, Fixtures.beachServer],
-                    homeId: .constant(Fixtures.home.id),
-                    serverId: .constant(Fixtures.houseServer.id),
-                    direction: .constant(.homeAssistantToAppleHome),
-                    subject: .constant(.placement),
-                    dryRunResult: Fixtures.placementPreview,
-                    progress: nil,
-                    errorMessage: nil,
-                    isWorking: false
-                )
-            },
-            named: "pad-02-sync",
-            size: padSize,
-            scale: padScale
-        )
-    }
-
-    func testCaptureEntitiesScreenOnPad() throws {
-        try captureIsEnabled()
-
-        try capture(
-            NavigationStack {
-                EntitiesContent(
-                    serverName: Fixtures.houseServer.name,
-                    serverId: Fixtures.houseServer.id,
-                    areas: Fixtures.entityAreas,
-                    search: .constant("")
-                )
-            },
-            named: "pad-03-entities",
-            size: padSize,
-            scale: padScale
-        )
-    }
-
-    func testCaptureDevicesScreenOnPad() throws {
-        try captureIsEnabled()
-
-        try capture(
-            NavigationStack {
-                HomeDevicesContent(home: Fixtures.home, search: .constant(""))
-            },
-            named: "pad-04-devices",
-            size: padSize,
-            scale: padScale
-        )
-    }
-
-    // MARK: - Plumbing
-
-    private func captureIsEnabled() throws {
+@MainActor
+enum StoreCapture {
+    static func captureIsEnabled() throws {
         #if targetEnvironment(macCatalyst)
         throw XCTSkip("A sandboxed Catalyst app cannot write into the repository")
         #endif
     }
 
-    private func capture(
+    static func capture(
         _ view: some View,
         named name: String,
-        size: CGSize? = nil,
-        scale: CGFloat? = nil
+        device: String,
+        size: CGSize,
+        scale: CGFloat
     ) throws {
-        let size = size ?? self.size
-        let scale = scale ?? self.scale
         let controller = UIHostingController(
             rootView: view
                 .environment(\.locale, Locale(identifier: "en_US"))
@@ -204,7 +151,8 @@ final class ScreenshotCaptureTests: SnapshotTestCase {
         let directory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // HomeKitBridgeTests
             .deletingLastPathComponent()   // the repository
-            .appendingPathComponent("Screenshots", isDirectory: true)
+            .appendingPathComponent("Docs/app-store", isDirectory: true)
+            .appendingPathComponent(device, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appendingPathComponent("\(name).png")
         try data.write(to: url)
