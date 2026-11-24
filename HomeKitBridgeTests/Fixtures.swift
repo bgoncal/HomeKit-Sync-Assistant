@@ -161,7 +161,7 @@ enum Fixtures {
             DeviceDifference(id: kitchenLight.id, deviceName: kitchenLight.name, appleHomeValue: "Kitchen", homeAssistantValue: "Cozinha")
         ],
         differentName: [
-            DeviceDifference(id: hallwaySensor.id, deviceName: hallwaySensor.name, appleHomeValue: hallwaySensor.name, homeAssistantValue: "Hallway Motion")
+            DeviceDifference(id: hallwaySensor.id, deviceName: hallwaySensor.name, appleHomeValue: hallwaySensor.name, homeAssistantValue: "Hallway Motion Sensor")
         ],
         unmatchedDevices: [nativeLock.name],
         matchingCount: 1

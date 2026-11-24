@@ -73,16 +73,18 @@ struct EntityPickerContent: View {
                             LabeledContent {
                                 if entity.entityId == selectedEntityId {
                                     Image(systemName: "checkmark")
-                                        .foregroundStyle(.tint)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.blue)
                                         .accessibilityLabel("Selected")
                                 }
                             } label: {
                                 Text(entity.name)
-                                    .foregroundStyle(.primary)
                                 Text(entity.entityId)
                                     .font(.system(.caption, design: .monospaced))
                             }
                         }
+                        // A choice in a list, as in Settings: black text, a checkmark for the pick.
+                        .tint(.primary)
                     }
                 } header: {
                     Text(area.name)
