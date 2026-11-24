@@ -44,6 +44,7 @@
 		B1000027 /* ScreenshotCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000008 /* ScreenshotCaptureTests.swift */; };
 		B1000030 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = B5000001 /* SnapshotTesting */; };
 		EE5D70393FB81B03E3A38198 /* SyncPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */; };
+		E874B0E8B53230C8C5508EE7 /* SyncUndo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,6 +98,7 @@
 		B2000008 /* ScreenshotCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureTests.swift; sourceTree = "<group>"; };
 		B2000010 /* HomeKitBridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HomeKitBridgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPlanTests.swift; sourceTree = "<group>"; };
+		F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncUndo.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -154,6 +156,7 @@
 		A4000004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */,
 				A2000017 /* HomeModels.swift */,
 				A2000019 /* HomeAssistantServer.swift */,
 				A2000007 /* LogEntry.swift */,
@@ -306,6 +309,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E874B0E8B53230C8C5508EE7 /* SyncUndo.swift in Sources */,
 				A1000001 /* HomeKitBridgeApp.swift in Sources */,
 				A1000024 /* TipService.swift in Sources */,
 				A1000023 /* LocalAPIView.swift in Sources */,

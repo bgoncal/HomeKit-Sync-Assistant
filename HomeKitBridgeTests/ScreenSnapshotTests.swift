@@ -210,6 +210,7 @@ final class SyncSnapshotTests: SnapshotTestCase {
         subject: SyncSubject = .placement,
         dryRun: DryRunResult? = nil,
         skipped: Set<UUID> = [],
+        lastSync: SyncUndoRecord? = nil,
         progress: SyncProgress? = nil,
         error: String? = nil,
         isWorking: Bool = false
@@ -223,6 +224,7 @@ final class SyncSnapshotTests: SnapshotTestCase {
             subject: .constant(subject),
             dryRunResult: dryRun,
             skippedChangeIds: .constant(skipped),
+            lastSync: lastSync,
             progress: progress,
             errorMessage: error,
             isWorking: isWorking
@@ -251,6 +253,10 @@ final class SyncSnapshotTests: SnapshotTestCase {
             NavigationStack { sync(dryRun: Fixtures.placementPreview, skipped: skipped) },
             named: "sync-preview-partial"
         )
+    }
+
+    func testUndoAfterASync() {
+        assertScreen(NavigationStack { sync(lastSync: Fixtures.lastSync) }, named: "sync-undo")
     }
 
     func testAlreadyInSync() {

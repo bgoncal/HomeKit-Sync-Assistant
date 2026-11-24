@@ -13,4 +13,16 @@ final class SyncPlanTests: XCTestCase {
         XCTAssertEqual(kept.serverId, plan.serverId)
         XCTAssertEqual(kept.operation, plan.operation)
     }
+
+    /// The record is stored as JSON in UserDefaults; its shape is persisted API.
+    func testUndoRecordRoundTripsThroughDefaults() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "SyncPlanTests"))
+        defaults.removePersistentDomain(forName: "SyncPlanTests")
+
+        SyncUndoRecord.save(Fixtures.lastSync, to: defaults)
+        XCTAssertEqual(SyncUndoRecord.load(from: defaults), Fixtures.lastSync)
+
+        SyncUndoRecord.save(nil, to: defaults)
+        XCTAssertNil(SyncUndoRecord.load(from: defaults))
+    }
 }

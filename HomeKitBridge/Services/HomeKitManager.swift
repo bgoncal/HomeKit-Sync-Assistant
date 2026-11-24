@@ -147,6 +147,26 @@ final class HomeKitManager: NSObject, ObservableObject {
         return RoomSummary(id: room.uniqueIdentifier.uuidString, name: room.name)
     }
 
+    /// Removes a room. Its accessories fall back to the home's default room.
+    func removeRoom(id: String) async throws {
+        guard let room = hkRoom(byId: id),
+              let home = manager?.homes.first(where: { $0.rooms.contains(room) }) else {
+            throw BridgeError.notFound("Room not found")
+        }
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            home.removeRoom(room) { error in
+                if let error {
+                    cont.resume(throwing: error)
+                } else {
+                    cont.resume(returning: ())
+                }
+            }
+        }
+
+        refreshHomes()
+    }
+
     func renameRoom(id: String, newName: String) async throws {
         guard let room = hkRoom(byId: id) else {
             throw BridgeError.notFound("Room not found")

@@ -279,6 +279,14 @@ final class HAWebSocketClient: ObservableObject {
         ])
     }
 
+    /// Delete an area. Entities in it go back to having no area.
+    func deleteArea(areaId: String) async throws {
+        _ = try await sendCommand([
+            "type": "config/area_registry/delete",
+            "area_id": areaId
+        ])
+    }
+
     /// Update entity registry entry (name, area_id, etc.)
     func updateEntity(entityId: String, updates: [String: Any]) async throws -> [String: Any] {
         var cmd: [String: Any] = [

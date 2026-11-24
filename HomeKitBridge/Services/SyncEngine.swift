@@ -321,15 +321,20 @@ struct SyncProgress: Equatable {
 final class SyncEngine: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var progress: SyncProgress?
+    /// The last sync that wrote anything, kept until it is undone or replaced.
+    @Published private(set) var lastUndo: SyncUndoRecord?
 
     private let homeKitManager: HomeKitManager
     private let logStore: LogStore
     private let connections: ConnectionStore
+    private let defaults: UserDefaults
 
-    init(homeKitManager: HomeKitManager, logStore: LogStore, connections: ConnectionStore) {
+    init(homeKitManager: HomeKitManager, logStore: LogStore, connections: ConnectionStore, defaults: UserDefaults = .standard) {
         self.homeKitManager = homeKitManager
         self.logStore = logStore
         self.connections = connections
+        self.defaults = defaults
+        self.lastUndo = SyncUndoRecord.load(from: defaults)
     }
 
     /// One Apple Home, the Home Assistant server it is paired with, and the open
@@ -395,6 +400,17 @@ final class SyncEngine: ObservableObject {
 
         var successCount = 0
         var failCount = 0
+        var undoSteps: [UndoStep] = []
+
+        // Home Assistant's own values are read once, so an undo can restore them.
+        var registry: [String: [String: Any]] = [:]
+        if result.operation.direction.destination == .homeAssistant {
+            for entry in (try? await context.client.fetchEntityRegistry()) ?? [] {
+                if let entityId = entry["entity_id"] as? String {
+                    registry[entityId] = entry
+                }
+            }
+        }
 
         for (index, change) in result.changes.enumerated() {
             progress = SyncProgress(
@@ -405,7 +421,7 @@ final class SyncEngine: ObservableObject {
             )
 
             do {
-                try await executeChange(change, operation: result.operation, context: context)
+                undoSteps += try await executeChange(change, operation: result.operation, context: context, registry: registry)
                 successCount += 1
                 progress = SyncProgress(
                     title: "Applied change \(index + 1) of \(result.changes.count)",
@@ -420,11 +436,74 @@ final class SyncEngine: ObservableObject {
             }
         }
 
+        if !undoSteps.isEmpty {
+            setLastUndo(SyncUndoRecord(
+                operation: result.operation,
+                homeId: context.home.id,
+                serverId: context.server.id,
+                destinationName: destinationName(for: result.operation, context: context),
+                steps: undoSteps
+            ))
+        }
+
         logStore.add(
             category: .sync,
             message: "Finished: \(result.operation.displayTitle)",
             details: "\(successCount) applied, \(failCount) failed in \(destinationName(for: result.operation, context: context))"
         )
+    }
+
+    // MARK: - Undo
+
+    /// Walks the last sync's steps backwards. Steps that no longer apply (a room
+    /// deleted by hand since) are logged and skipped rather than stopping the rest.
+    func undoLastSync() async throws {
+        guard let record = lastUndo else { return }
+        isBusy = true
+        defer {
+            isBusy = false
+            progress = nil
+        }
+
+        let context = try await context(homeId: record.homeId, serverId: record.serverId)
+        let steps = Array(record.steps.reversed())
+        logStore.add(category: .sync, message: "Undoing: \(record.operation.displayTitle)", details: "\(steps.count) step\(steps.count == 1 ? "" : "s") in \(record.destinationName)")
+
+        var failCount = 0
+        for (index, step) in steps.enumerated() {
+            progress = SyncProgress(title: "Undoing change \(index + 1) of \(steps.count)", completed: index, total: steps.count)
+            do {
+                try await perform(step, context: context)
+            } catch {
+                failCount += 1
+                logStore.add(category: .error, message: "✗ Could not undo a change", details: error.localizedDescription)
+            }
+        }
+
+        setLastUndo(nil)
+        logStore.add(category: .sync, message: "Undone: \(record.operation.displayTitle)", details: "\(steps.count - failCount) restored, \(failCount) failed in \(record.destinationName)")
+    }
+
+    private func perform(_ step: UndoStep, context: SyncContext) async throws {
+        switch step {
+        case .renameAccessory(let accessoryId, let name):
+            try await homeKitManager.renameAccessory(id: accessoryId, newName: name)
+        case .moveAccessory(let accessoryId, let roomId):
+            try await homeKitManager.moveAccessory(id: accessoryId, toRoomId: roomId)
+        case .removeRoom(let roomId, _):
+            try await homeKitManager.removeRoom(id: roomId)
+        case .renameEntity(let entityId, let name):
+            _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": name ?? NSNull()])
+        case .setEntityArea(let entityId, let areaId):
+            _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": areaId ?? NSNull()])
+        case .removeArea(let areaId, _):
+            try await context.client.deleteArea(areaId: areaId)
+        }
+    }
+
+    private func setLastUndo(_ record: SyncUndoRecord?) {
+        lastUndo = record
+        SyncUndoRecord.save(record, to: defaults)
     }
 
     private func destinationName(for operation: SyncOperation, context: SyncContext) -> String {
@@ -434,78 +513,106 @@ final class SyncEngine: ObservableObject {
         }
     }
 
-    private func executeChange(_ change: SyncChange, operation: SyncOperation, context: SyncContext) async throws {
+    /// Applies one change and returns what would reverse it.
+    private func executeChange(
+        _ change: SyncChange,
+        operation: SyncOperation,
+        context: SyncContext,
+        registry: [String: [String: Any]]
+    ) async throws -> [UndoStep] {
         switch operation {
         case .roomsHAToHome:
             switch change.action {
             case .createRoom:
-                guard let homeId = change.homeId, let name = change.newName else { return }
-                _ = try await homeKitManager.createRoom(homeId: homeId, name: name)
+                guard let homeId = change.homeId, let name = change.newName else { return [] }
+                let room = try await homeKitManager.createRoom(homeId: homeId, name: name)
+                return [.removeRoom(roomId: room.id, name: room.name)]
             case .renameRoom:
-                guard let roomId = change.roomId, let name = change.newName else { return }
+                guard let roomId = change.roomId, let name = change.newName else { return [] }
                 try await homeKitManager.renameRoom(id: roomId, newName: name)
-            default: break
+                return []
+            default:
+                return []
             }
 
         case .roomsHomeToHA:
-            if change.action == .createRoom, let name = change.newName {
-                _ = try await context.client.createArea(name: name)
-            }
+            guard change.action == .createRoom, let name = change.newName else { return [] }
+            let result = try await context.client.createArea(name: name)
+            guard let areaId = (result["result"] as? [String: Any])?["area_id"] as? String else { return [] }
+            return [.removeArea(areaId: areaId, name: name)]
 
         case .devicePlacementHAToHome:
             switch change.action {
             case .createRoom:
-                guard let homeId = change.homeId, let name = change.newName else { return }
-                _ = try await homeKitManager.createRoom(homeId: homeId, name: name)
+                guard let homeId = change.homeId, let name = change.newName else { return [] }
+                // An earlier move may already have created it.
+                if homeKitManager.home(byId: homeId)?.room(named: name) != nil { return [] }
+                let room = try await homeKitManager.createRoom(homeId: homeId, name: name)
+                return [.removeRoom(roomId: room.id, name: room.name)]
             case .moveAccessory:
-                guard let accessoryId = change.accessoryId else { return }
+                guard let accessoryId = change.accessoryId else { return [] }
+                var steps: [UndoStep] = []
                 let home = homeKitManager.home(byId: context.home.id) ?? context.home
-                let resolvedRoomId: String?
+                let resolvedRoomId: String
                 if let existing = change.roomId {
                     resolvedRoomId = existing
                 } else if let roomName = change.targetRoomName, let room = home.room(named: roomName) {
                     resolvedRoomId = room.id
                 } else if let roomName = change.targetRoomName {
                     // The room's own "Create" row was unticked; the move still needs it.
-                    resolvedRoomId = try await homeKitManager.createRoom(homeId: context.home.id, name: roomName).id
+                    let room = try await homeKitManager.createRoom(homeId: context.home.id, name: roomName)
+                    steps.append(.removeRoom(roomId: room.id, name: room.name))
+                    resolvedRoomId = room.id
                 } else {
-                    resolvedRoomId = nil
+                    return []
                 }
-                guard let roomId = resolvedRoomId else { return }
-                try await homeKitManager.moveAccessory(id: accessoryId, toRoomId: roomId)
-            default: break
+                let previousRoomId = homeKitManager.accessory(byId: accessoryId)?.roomId
+                try await homeKitManager.moveAccessory(id: accessoryId, toRoomId: resolvedRoomId)
+                if let previousRoomId {
+                    steps.append(.moveAccessory(accessoryId: accessoryId, roomId: previousRoomId))
+                }
+                return steps
+            default:
+                return []
             }
 
         case .devicePlacementHomeToHA:
-            if change.action == .moveAccessory {
-                guard let entityId = change.accessoryId, let targetArea = change.targetRoomName else { return }
-                let areas = try await context.client.fetchAreas()
-                var areaId: String?
-                for area in areas {
-                    if let name = area["name"] as? String, name.caseInsensitiveCompare(targetArea) == .orderedSame {
-                        areaId = area["area_id"] as? String
-                        break
-                    }
+            guard change.action == .moveAccessory,
+                  let entityId = change.accessoryId,
+                  let targetArea = change.targetRoomName else { return [] }
+            var steps: [UndoStep] = []
+            let areas = try await context.client.fetchAreas()
+            var areaId = areas.first {
+                ($0["name"] as? String)?.caseInsensitiveCompare(targetArea) == .orderedSame
+            }?["area_id"] as? String
+            if areaId == nil {
+                let result = try await context.client.createArea(name: targetArea)
+                areaId = (result["result"] as? [String: Any])?["area_id"] as? String
+                if let areaId {
+                    steps.append(.removeArea(areaId: areaId, name: targetArea))
                 }
-                if areaId == nil {
-                    let result = try await context.client.createArea(name: targetArea)
-                    areaId = (result["result"] as? [String: Any])?["area_id"] as? String
-                }
-                guard let finalAreaId = areaId else { return }
-                _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": finalAreaId])
             }
+            guard let finalAreaId = areaId else { return steps }
+            let previousAreaId = registry[entityId]?["area_id"] as? String
+            _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": finalAreaId])
+            steps.append(.setEntityArea(entityId: entityId, areaId: previousAreaId))
+            return steps
 
         case .deviceNamesHAToHome:
-            if change.action == .renameAccessory {
-                guard let accessoryId = change.accessoryId, let newName = change.newName else { return }
-                try await homeKitManager.renameAccessory(id: accessoryId, newName: newName)
-            }
+            guard change.action == .renameAccessory,
+                  let accessoryId = change.accessoryId,
+                  let newName = change.newName else { return [] }
+            let previousName = homeKitManager.accessory(byId: accessoryId)?.name
+            try await homeKitManager.renameAccessory(id: accessoryId, newName: newName)
+            return previousName.map { [.renameAccessory(accessoryId: accessoryId, name: $0)] } ?? []
 
         case .deviceNamesHomeToHA:
-            if change.action == .renameAccessory {
-                guard let entityId = change.accessoryId, let newName = change.newName else { return }
-                _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": newName])
-            }
+            guard change.action == .renameAccessory,
+                  let entityId = change.accessoryId,
+                  let newName = change.newName else { return [] }
+            let previousName = registry[entityId]?["name"] as? String
+            _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": newName])
+            return [.renameEntity(entityId: entityId, name: previousName)]
         }
     }
 

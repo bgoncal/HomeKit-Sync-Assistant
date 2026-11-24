@@ -152,6 +152,19 @@ enum Fixtures {
 
     // MARK: - Sync
 
+    static let lastSync = SyncUndoRecord(
+        id: UUID(uuidString: "EEEEEEEE-0000-0000-0000-000000000001")!,
+        operation: .devicePlacementHAToHome,
+        homeId: home.id,
+        serverId: houseServer.id,
+        destinationName: home.name,
+        date: Date(timeIntervalSince1970: 1_795_000_000),
+        steps: [
+            .moveAccessory(accessoryId: kitchenLight.id, roomId: "room-kitchen"),
+            .removeRoom(roomId: "room-cozinha", name: "Cozinha")
+        ]
+    )
+
     static let placementPreview = DryRunResult(
         id: UUID(uuidString: "DDDDDDDD-0000-0000-0000-000000000001")!,
         operation: .devicePlacementHAToHome,

@@ -26,11 +26,13 @@ struct SyncView: View {
             subject: $subject,
             dryRunResult: dryRunResult,
             skippedChangeIds: $skippedChangeIds,
+            lastSync: syncEngine.lastUndo,
             progress: syncEngine.progress,
             errorMessage: errorMessage,
             isWorking: isWorking,
             onPreview: { Task { await runDryRun() } },
-            onApply: { Task { await apply() } }
+            onApply: { Task { await apply() } },
+            onUndo: { Task { await undo() } }
         )
         .onAppear(perform: restoreChoice)
         .onChange(of: operation) { _, _ in clearPlan() }
@@ -72,6 +74,18 @@ struct SyncView: View {
         }
     }
 
+    private func undo() async {
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+
+        do {
+            try await syncEngine.undoLastSync()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func apply() async {
         guard let dryRunResult else { return }
         isWorking = true
@@ -99,13 +113,17 @@ struct SyncContent: View {
     let dryRunResult: DryRunResult?
     /// Changes the person unticked in the preview; everything else is applied.
     var skippedChangeIds: Binding<Set<UUID>> = .constant([])
+    /// The last sync that wrote anything, while it can still be undone.
+    var lastSync: SyncUndoRecord?
     let progress: SyncProgress?
     let errorMessage: String?
     let isWorking: Bool
     var onPreview: () -> Void = {}
     var onApply: () -> Void = {}
+    var onUndo: () -> Void = {}
 
     @State private var isConfirmingApply = false
+    @State private var isConfirmingUndo = false
 
     private var operation: SyncOperation { direction.operation(for: subject) }
     private var home: HomeSummary? { homes.first { $0.id == homeId } ?? homes.first }
@@ -136,6 +154,10 @@ struct SyncContent: View {
 
             previewSection
             applySection
+
+            if dryRunResult == nil, let lastSync {
+                lastSyncSection(lastSync)
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Sync")
@@ -354,6 +376,40 @@ struct SyncContent: View {
     private var confirmationMessage: String {
         let count = selectedCount
         return "\(count) change\(count == 1 ? "" : "s") will be written to \(destinationName). \(sourceName) is not touched."
+    }
+
+    // MARK: Undo
+
+    private func lastSyncSection(_ record: SyncUndoRecord) -> some View {
+        Section {
+            LabeledContent {
+                Text(record.date.formatted(date: .abbreviated, time: .shortened))
+            } label: {
+                Text(record.operation.shortTitle)
+                Text(record.operation.direction.label)
+            }
+
+            Button(role: .destructive) {
+                isConfirmingUndo = true
+            } label: {
+                Label("Undo Changes in \(record.destinationName)", systemImage: "arrow.uturn.backward")
+            }
+            .disabled(isWorking)
+            .confirmationDialog(
+                "Undo the last sync?",
+                isPresented: $isConfirmingUndo,
+                titleVisibility: .visible
+            ) {
+                Button("Undo \(record.steps.count) Change\(record.steps.count == 1 ? "" : "s")", role: .destructive, action: onUndo)
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("\(record.destinationName) goes back to how it was before. Rooms or areas the sync created are removed.")
+            }
+        } header: {
+            Text("Last Sync")
+        } footer: {
+            Text("Puts back the \(record.steps.count) change\(record.steps.count == 1 ? "" : "s") it made in \(record.destinationName). Only this device remembers them, and only until the next sync.")
+        }
     }
 
     // MARK: Pieces
