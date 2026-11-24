@@ -43,6 +43,7 @@
 		B1000026 /* ConfigurationSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007 /* ConfigurationSyncTests.swift */; };
 		B1000027 /* ScreenshotCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000008 /* ScreenshotCaptureTests.swift */; };
 		B1000030 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = B5000001 /* SnapshotTesting */; };
+		EE5D70393FB81B03E3A38198 /* SyncPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -95,6 +96,7 @@
 		B2000007 /* ConfigurationSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationSyncTests.swift; sourceTree = "<group>"; };
 		B2000008 /* ScreenshotCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureTests.swift; sourceTree = "<group>"; };
 		B2000010 /* HomeKitBridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HomeKitBridgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPlanTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +199,7 @@
 		B4000001 /* HomeKitBridgeTests */ = {
 			isa = PBXGroup;
 			children = (
+				FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */,
 				B2000001 /* SnapshotSupport.swift */,
 				B2000002 /* Fixtures.swift */,
 				B2000003 /* OnboardingSnapshotTests.swift */,
@@ -335,6 +338,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EE5D70393FB81B03E3A38198 /* SyncPlanTests.swift in Sources */,
 				B1000020 /* SnapshotSupport.swift in Sources */,
 				B1000021 /* Fixtures.swift in Sources */,
 				B1000022 /* OnboardingSnapshotTests.swift in Sources */,

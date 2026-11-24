@@ -10,6 +10,7 @@ struct SyncView: View {
     @State private var homeId: String = ""
     @State private var serverId: UUID?
     @State private var dryRunResult: DryRunResult?
+    @State private var skippedChangeIds: Set<UUID> = []
     @State private var isWorking = false
     @State private var errorMessage: String?
 
@@ -24,6 +25,7 @@ struct SyncView: View {
             direction: $direction,
             subject: $subject,
             dryRunResult: dryRunResult,
+            skippedChangeIds: $skippedChangeIds,
             progress: syncEngine.progress,
             errorMessage: errorMessage,
             isWorking: isWorking,
@@ -51,6 +53,7 @@ struct SyncView: View {
 
     private func clearPlan() {
         dryRunResult = nil
+        skippedChangeIds = []
         errorMessage = nil
     }
 
@@ -59,6 +62,7 @@ struct SyncView: View {
         isWorking = true
         errorMessage = nil
         dryRunResult = nil
+        skippedChangeIds = []
         defer { isWorking = false }
 
         do {
@@ -75,8 +79,9 @@ struct SyncView: View {
         defer { isWorking = false }
 
         do {
-            try await syncEngine.execute(dryRunResult)
+            try await syncEngine.execute(dryRunResult.keeping { !skippedChangeIds.contains($0.id) })
             self.dryRunResult = nil
+            skippedChangeIds = []
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -92,6 +97,8 @@ struct SyncContent: View {
     @Binding var direction: SyncDirection
     @Binding var subject: SyncSubject
     let dryRunResult: DryRunResult?
+    /// Changes the person unticked in the preview; everything else is applied.
+    var skippedChangeIds: Binding<Set<UUID>> = .constant([])
     let progress: SyncProgress?
     let errorMessage: String?
     let isWorking: Bool
@@ -217,7 +224,7 @@ struct SyncContent: View {
         direction.destination == .appleHome ? (home?.name ?? SyncPlatform.appleHome.name) : (server?.name ?? SyncPlatform.homeAssistant.name)
     }
 
-    // MARK: 2 — what
+    // MARK: 3 — what
 
     private var subjectSection: some View {
         Section {
@@ -237,7 +244,7 @@ struct SyncContent: View {
         }
     }
 
-    // MARK: 3 — preview
+    // MARK: 4 — preview
 
     private var previewButtonSection: some View {
         Section {
@@ -276,15 +283,41 @@ struct SyncContent: View {
                         changeRow(change)
                     }
                 } header: {
-                    Text("\(dryRunResult.changes.count) Change\(dryRunResult.changes.count == 1 ? "" : "s")")
+                    HStack {
+                        Text(selectionHeader(for: dryRunResult))
+                        Spacer()
+                        Button(allSelected(in: dryRunResult) ? "Select None" : "Select All") {
+                            skippedChangeIds.wrappedValue = allSelected(in: dryRunResult) ? Set(dryRunResult.changes.map(\.id)) : []
+                        }
+                        .font(.footnote)
+                        .textCase(nil)
+                        .disabled(isWorking)
+                    }
                 } footer: {
-                    Text(dryRunResult.summary)
+                    Text("\(dryRunResult.summary) Untick anything you would rather leave as it is.")
                 }
             }
         }
     }
 
-    // MARK: 4 — apply
+    private var selectedCount: Int {
+        guard let dryRunResult else { return 0 }
+        return dryRunResult.changes.filter { !skippedChangeIds.wrappedValue.contains($0.id) }.count
+    }
+
+    private func allSelected(in result: DryRunResult) -> Bool {
+        skippedChangeIds.wrappedValue.isDisjoint(with: result.changes.map(\.id))
+    }
+
+    private func selectionHeader(for result: DryRunResult) -> String {
+        let total = result.changes.count
+        if selectedCount == total {
+            return "\(total) Change\(total == 1 ? "" : "s")"
+        }
+        return "\(selectedCount) of \(total) Selected"
+    }
+
+    // MARK: 5 — apply
 
     @ViewBuilder
     private var applySection: some View {
@@ -295,7 +328,7 @@ struct SyncContent: View {
                 } label: {
                     Label(applyTitle, systemImage: "checkmark.circle")
                 }
-                .disabled(isWorking)
+                .disabled(isWorking || selectedCount == 0)
             } header: {
                 Text("5 · Apply")
             } footer: {
@@ -305,7 +338,7 @@ struct SyncContent: View {
     }
 
     private var applyTitle: String {
-        let count = dryRunResult?.changes.count ?? 0
+        let count = selectedCount
         return "Apply \(count) Change\(count == 1 ? "" : "s") to \(destinationName)"
     }
 
@@ -314,12 +347,12 @@ struct SyncContent: View {
     }
 
     private var confirmationButton: String {
-        let count = dryRunResult?.changes.count ?? 0
+        let count = selectedCount
         return "Apply \(count) Change\(count == 1 ? "" : "s")"
     }
 
     private var confirmationMessage: String {
-        let count = dryRunResult?.changes.count ?? 0
+        let count = selectedCount
         return "\(count) change\(count == 1 ? "" : "s") will be written to \(destinationName). \(sourceName) is not touched."
     }
 
@@ -351,25 +384,44 @@ struct SyncContent: View {
         }
     }
 
+    /// A change as a Reminders-style row: the circle says whether it will be applied.
     private func changeRow(_ change: SyncChange) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon(for: change.action))
-                .font(.body)
-                .foregroundStyle(iconColor(for: change.action))
-                .frame(width: 24)
-                .accessibilityHidden(true)
+        let isSelected = !skippedChangeIds.wrappedValue.contains(change.id)
+        return Button {
+            if isSelected {
+                skippedChangeIds.wrappedValue.insert(change.id)
+            } else {
+                skippedChangeIds.wrappedValue.remove(change.id)
+            }
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(change.title)
-                    .font(.body.weight(.medium))
-                Text(change.details)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(change.title)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                    Label {
+                        Text(change.details)
+                    } icon: {
+                        Image(systemName: icon(for: change.action))
+                            .foregroundStyle(iconColor(for: change.action))
+                    }
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 2)
+        .buttonStyle(.plain)
+        .disabled(isWorking)
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     private func icon(for action: SyncActionType) -> String {

@@ -209,6 +209,7 @@ final class SyncSnapshotTests: SnapshotTestCase {
         direction: SyncDirection = .homeAssistantToAppleHome,
         subject: SyncSubject = .placement,
         dryRun: DryRunResult? = nil,
+        skipped: Set<UUID> = [],
         progress: SyncProgress? = nil,
         error: String? = nil,
         isWorking: Bool = false
@@ -221,6 +222,7 @@ final class SyncSnapshotTests: SnapshotTestCase {
             direction: .constant(direction),
             subject: .constant(subject),
             dryRunResult: dryRun,
+            skippedChangeIds: .constant(skipped),
             progress: progress,
             errorMessage: error,
             isWorking: isWorking
@@ -240,6 +242,15 @@ final class SyncSnapshotTests: SnapshotTestCase {
 
     func testPreviewWithChanges() {
         assertScreen(NavigationStack { sync(dryRun: Fixtures.placementPreview) }, named: "sync-preview")
+    }
+
+    /// Unticked changes stay in the list, greyed, and drop out of the Apply count.
+    func testPreviewWithSomeChangesUnticked() {
+        let skipped = Set(Fixtures.placementPreview.changes.prefix(1).map(\.id))
+        assertScreen(
+            NavigationStack { sync(dryRun: Fixtures.placementPreview, skipped: skipped) },
+            named: "sync-preview-partial"
+        )
     }
 
     func testAlreadyInSync() {

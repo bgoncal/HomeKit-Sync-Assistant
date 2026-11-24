@@ -245,6 +245,20 @@ struct DryRunResult: Identifiable, Equatable {
     }
 }
 
+extension DryRunResult {
+    /// The same plan with only the changes the person kept ticked.
+    func keeping(_ isIncluded: (SyncChange) -> Bool) -> DryRunResult {
+        DryRunResult(
+            id: id,
+            operation: operation,
+            homeId: homeId,
+            serverId: serverId,
+            summary: summary,
+            changes: changes.filter(isIncluded)
+        )
+    }
+}
+
 enum SyncActionType: String {
     case createRoom
     case renameRoom
@@ -451,6 +465,9 @@ final class SyncEngine: ObservableObject {
                     resolvedRoomId = existing
                 } else if let roomName = change.targetRoomName, let room = home.room(named: roomName) {
                     resolvedRoomId = room.id
+                } else if let roomName = change.targetRoomName {
+                    // The room's own "Create" row was unticked; the move still needs it.
+                    resolvedRoomId = try await homeKitManager.createRoom(homeId: context.home.id, name: roomName).id
                 } else {
                     resolvedRoomId = nil
                 }
