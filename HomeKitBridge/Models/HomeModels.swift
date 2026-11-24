@@ -121,19 +121,54 @@ struct ZoneSummary: Identifiable, Equatable, Codable {
     }
 }
 
+/// What one device does in a scene. Only power and brightness travel between the
+/// two sides: they mean the same thing in both, which colours and modes do not.
+struct SceneAction: Equatable, Codable {
+    let accessoryId: String
+    var isOn: Bool?
+    /// 0–100, as Apple Home counts it.
+    var brightness: Int?
+}
+
+/// An Apple Home scene, with the actions this app can carry across.
+struct SceneSummary: Identifiable, Equatable, Codable {
+    let id: String
+    let name: String
+    let actions: [SceneAction]
+
+    init(id: String = UUID().uuidString, name: String, actions: [SceneAction] = []) {
+        self.id = id
+        self.name = name
+        self.actions = actions
+    }
+}
+
 struct HomeSummary: Identifiable, Equatable, Codable {
     let id: String
     let name: String
     var rooms: [RoomSummary]
     var accessories: [AccessorySummary]
     var zones: [ZoneSummary]
+    var scenes: [SceneSummary]
 
-    init(id: String = UUID().uuidString, name: String, rooms: [RoomSummary] = [], accessories: [AccessorySummary] = [], zones: [ZoneSummary] = []) {
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        rooms: [RoomSummary] = [],
+        accessories: [AccessorySummary] = [],
+        zones: [ZoneSummary] = [],
+        scenes: [SceneSummary] = []
+    ) {
         self.id = id
         self.name = name
         self.rooms = rooms
         self.accessories = accessories
         self.zones = zones
+        self.scenes = scenes
+    }
+
+    func scene(named name: String) -> SceneSummary? {
+        scenes.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
     }
 
     func zone(named name: String) -> ZoneSummary? {

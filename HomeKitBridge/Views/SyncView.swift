@@ -501,6 +501,7 @@ struct SyncContent: View {
         case .renameAccessory: return "pencil"
         case .createZone: return "building.2"
         case .assignZone: return "square.stack.3d.up"
+        case .createScene: return "sparkles"
         case .unsupported: return "exclamationmark.triangle"
         }
     }
@@ -513,6 +514,7 @@ struct SyncContent: View {
         case .renameAccessory: return .purple
         case .createZone: return .teal
         case .assignZone: return .indigo
+        case .createScene: return .yellow
         case .unsupported: return .red
         }
     }

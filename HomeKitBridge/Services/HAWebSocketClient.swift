@@ -310,6 +310,49 @@ final class HAWebSocketClient: ObservableObject {
         ])
     }
 
+    // MARK: - Scenes (REST)
+
+    /// A scene made in Home Assistant's scene editor: its entities and their states.
+    /// Scenes written in YAML have no stored config and return `nil`.
+    func sceneConfig(id: String) async throws -> [String: Any]? {
+        let (data, status) = try await rest("GET", path: "/api/config/scene/config/\(id)")
+        guard status == 200 else { return nil }
+        return try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    func saveSceneConfig(id: String, name: String, entities: [String: [String: Any]]) async throws {
+        let body: [String: Any] = ["id": id, "name": name, "entities": entities]
+        let (data, status) = try await rest("POST", path: "/api/config/scene/config/\(id)", body: body)
+        guard status == 200 else {
+            throw HAWSError.haError(String(data: data, encoding: .utf8) ?? "HTTP \(status)")
+        }
+    }
+
+    func deleteSceneConfig(id: String) async throws {
+        let (data, status) = try await rest("DELETE", path: "/api/config/scene/config/\(id)")
+        guard status == 200 else {
+            throw HAWSError.haError(String(data: data, encoding: .utf8) ?? "HTTP \(status)")
+        }
+    }
+
+    /// The REST API, for the few things the WebSocket API cannot do.
+    private func rest(_ method: String, path: String, body: [String: Any]? = nil) async throws -> (Data, Int) {
+        var base = HAConfiguration.normalizedURL(address)
+        if !base.contains("://") { base = "http://" + base }
+        guard let url = URL(string: base + path) else {
+            throw HAWSError.encodingError
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+    }
+
     /// Delete an area. Entities in it go back to having no area.
     func deleteArea(areaId: String) async throws {
         _ = try await sendCommand([

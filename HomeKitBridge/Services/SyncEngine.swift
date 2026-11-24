@@ -62,6 +62,8 @@ enum SyncDirection: String, CaseIterable, Hashable, Codable {
         case (.names, .appleHomeToHomeAssistant): return .deviceNamesHomeToHA
         case (.zones, .homeAssistantToAppleHome): return .zonesHAToHome
         case (.zones, .appleHomeToHomeAssistant): return .zonesHomeToHA
+        case (.scenes, .homeAssistantToAppleHome): return .scenesHAToHome
+        case (.scenes, .appleHomeToHomeAssistant): return .scenesHomeToHA
         }
     }
 }
@@ -72,6 +74,7 @@ enum SyncSubject: String, CaseIterable, Identifiable, Hashable, Codable {
     case placement
     case names
     case zones
+    case scenes
 
     var id: String { rawValue }
 
@@ -81,6 +84,7 @@ enum SyncSubject: String, CaseIterable, Identifiable, Hashable, Codable {
         case .placement: return "Device placement"
         case .names: return "Device names"
         case .zones: return "Floors and zones"
+        case .scenes: return "Scenes"
         }
     }
 
@@ -90,6 +94,7 @@ enum SyncSubject: String, CaseIterable, Identifiable, Hashable, Codable {
         case .placement: return "arrow.up.and.down.and.arrow.left.and.right"
         case .names: return "textformat"
         case .zones: return "building.2"
+        case .scenes: return "sparkles"
         }
     }
 }
@@ -105,6 +110,8 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
     case deviceNamesHomeToHA = "names.appleHomeToHomeAssistant"
     case zonesHAToHome = "zones.homeAssistantToAppleHome"
     case zonesHomeToHA = "zones.appleHomeToHomeAssistant"
+    case scenesHAToHome = "scenes.homeAssistantToAppleHome"
+    case scenesHomeToHA = "scenes.appleHomeToHomeAssistant"
 
     var id: String { rawValue }
 
@@ -136,6 +143,8 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
         case .deviceNamesHomeToHA: return .deviceNamesHAToHome
         case .zonesHAToHome: return .zonesHomeToHA
         case .zonesHomeToHA: return .zonesHAToHome
+        case .scenesHAToHome: return .scenesHomeToHA
+        case .scenesHomeToHA: return .scenesHAToHome
         }
     }
 
@@ -145,14 +154,15 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
         case .devicePlacementHAToHome, .devicePlacementHomeToHA: return .placement
         case .deviceNamesHAToHome, .deviceNamesHomeToHA: return .names
         case .zonesHAToHome, .zonesHomeToHA: return .zones
+        case .scenesHAToHome, .scenesHomeToHA: return .scenes
         }
     }
 
     var direction: SyncDirection {
         switch self {
-        case .roomsHAToHome, .devicePlacementHAToHome, .deviceNamesHAToHome, .zonesHAToHome:
+        case .roomsHAToHome, .devicePlacementHAToHome, .deviceNamesHAToHome, .zonesHAToHome, .scenesHAToHome:
             return .homeAssistantToAppleHome
-        case .roomsHomeToHA, .devicePlacementHomeToHA, .deviceNamesHomeToHA, .zonesHomeToHA:
+        case .roomsHomeToHA, .devicePlacementHomeToHA, .deviceNamesHomeToHA, .zonesHomeToHA, .scenesHomeToHA:
             return .appleHomeToHomeAssistant
         }
     }
@@ -176,6 +186,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
             return "Group Apple Home rooms into zones from Home Assistant floors"
         case .zonesHomeToHA:
             return "Put Home Assistant areas on floors from Apple Home zones"
+        case .scenesHAToHome:
+            return "Create Apple Home scenes from Home Assistant scenes"
+        case .scenesHomeToHA:
+            return "Create Home Assistant scenes from Apple Home scenes"
         }
     }
 
@@ -200,6 +214,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
             return "Each Home Assistant floor becomes an Apple Home zone, and the rooms that match its areas are added to it. Rooms are never taken out of a zone, and Home Assistant is left untouched."
         case .zonesHomeToHA:
             return "Each Apple Home zone becomes a Home Assistant floor, and the areas that match its rooms are put on it. Apple Home is left untouched."
+        case .scenesHAToHome:
+            return "Each Home Assistant scene made in its scene editor, with no Apple Home scene of the same name, is created in Apple Home. Only lights and switches carry across: on or off, and brightness. Existing scenes are never changed."
+        case .scenesHomeToHA:
+            return "Each Apple Home scene with no Home Assistant scene of the same name is created in Home Assistant. Only lights and switches carry across: on or off, and brightness. Existing scenes are never changed."
         }
     }
 
@@ -223,6 +241,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
                 return "Apple Home already has a zone for every floor, with the same rooms in it."
             case .zonesHomeToHA:
                 return "Home Assistant already has a floor for every zone, with the same areas on it."
+            case .scenesHAToHome:
+                return "Apple Home already has a scene for every Home Assistant scene it can carry across."
+            case .scenesHomeToHA:
+                return "Home Assistant already has a scene for every Apple Home scene it can carry across."
             }
         }
 
@@ -244,6 +266,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
             noun = changeCount == 1 ? "change will be made in Apple Home" : "changes will be made in Apple Home"
         case .zonesHomeToHA:
             noun = changeCount == 1 ? "change will be made in Home Assistant" : "changes will be made in Home Assistant"
+        case .scenesHAToHome:
+            noun = changeCount == 1 ? "scene will be created in Apple Home" : "scenes will be created in Apple Home"
+        case .scenesHomeToHA:
+            noun = changeCount == 1 ? "scene will be created in Home Assistant" : "scenes will be created in Home Assistant"
         }
 
         return "\(changeCount) \(noun). \(direction.source.name) will not change."
@@ -294,6 +320,7 @@ enum SyncActionType: String {
     case createZone
     /// A room joins a zone, or an area moves onto a floor.
     case assignZone
+    case createScene
     case unsupported
 }
 
@@ -308,11 +335,17 @@ struct SyncChange: Identifiable, Equatable {
     let homeId: String?
     let targetRoomName: String?
     let extraData: [String: String]?
+    /// For a scene: what each Apple Home accessory does, and the entity it stands for.
+    let sceneActions: [SceneAction]?
+    let sceneEntityIds: [String: String]?
 
     init(id: UUID = UUID(), action: SyncActionType, title: String, details: String,
          accessoryId: String? = nil, roomId: String? = nil,
          newName: String? = nil, homeId: String? = nil,
-         targetRoomName: String? = nil, extraData: [String: String]? = nil) {
+         targetRoomName: String? = nil, extraData: [String: String]? = nil,
+         sceneActions: [SceneAction]? = nil, sceneEntityIds: [String: String]? = nil) {
+        self.sceneActions = sceneActions
+        self.sceneEntityIds = sceneEntityIds
         self.id = id
         self.action = action
         self.title = title
@@ -417,6 +450,8 @@ final class SyncEngine: ObservableObject {
         case .deviceNamesHomeToHA: return try await dryRunDeviceNamesHomeToHA(context)
         case .zonesHAToHome: return try await dryRunZonesHAToHome(context)
         case .zonesHomeToHA: return try await dryRunZonesHomeToHA(context)
+        case .scenesHAToHome: return try await dryRunScenesHAToHome(context)
+        case .scenesHomeToHA: return try await dryRunScenesHomeToHA(context)
         }
     }
 
@@ -546,6 +581,10 @@ final class SyncEngine: ObservableObject {
             try await context.client.deleteFloor(floorId: floorId)
         case .setAreaFloor(let areaId, let floorId):
             try await context.client.setFloor(floorId, forAreaId: areaId)
+        case .removeScene(let sceneId, _):
+            try await homeKitManager.removeScene(id: sceneId)
+        case .removeHomeAssistantScene(let configId, _):
+            try await context.client.deleteSceneConfig(id: configId)
         }
     }
 
@@ -667,7 +706,124 @@ final class SyncEngine: ObservableObject {
 
         case .zonesHomeToHA:
             return try await executeFloorChangeInHomeAssistant(change, context: context)
+
+        case .scenesHAToHome:
+            guard change.action == .createScene, let name = change.newName, let actions = change.sceneActions else { return [] }
+            let scene = try await homeKitManager.createScene(homeId: context.home.id, name: name, actions: actions)
+            return [.removeScene(sceneId: scene.id, name: scene.name)]
+
+        case .scenesHomeToHA:
+            guard change.action == .createScene,
+                  let name = change.newName,
+                  let actions = change.sceneActions,
+                  let entityIds = change.sceneEntityIds else { return [] }
+            var entities: [String: [String: Any]] = [:]
+            for action in actions {
+                guard let entityId = entityIds[action.accessoryId] else { continue }
+                entities[entityId] = Self.homeAssistantState(for: action, entityId: entityId)
+            }
+            let configId = "homesync_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12).lowercased()
+            try await context.client.saveSceneConfig(id: configId, name: name, entities: entities)
+            return [.removeHomeAssistantScene(configId: configId, name: name)]
         }
+    }
+
+    // MARK: - Scenes
+
+    /// Home Assistant's state for one scene member. Brightness is 0–255 there, 0–100 in Apple Home.
+    static func homeAssistantState(for action: SceneAction, entityId: String) -> [String: Any] {
+        var state: [String: Any] = ["state": action.isOn == false ? "off" : "on"]
+        if let brightness = action.brightness, entityId.hasPrefix("light."), action.isOn != false {
+            state["brightness"] = Int((Double(brightness) / 100 * 255).rounded())
+        }
+        return state
+    }
+
+    /// The Apple Home action for one Home Assistant scene member, or `nil` when it
+    /// is neither on nor off (a cover, a thermostat) and so cannot be carried across.
+    static func sceneAction(accessoryId: String, homeAssistantState: [String: Any]) -> SceneAction? {
+        let raw = homeAssistantState["state"] as? String
+        guard raw == "on" || raw == "off" else { return nil }
+        var action = SceneAction(accessoryId: accessoryId, isOn: raw == "on")
+        if raw == "on", let brightness = (homeAssistantState["brightness"] as? NSNumber)?.doubleValue {
+            action.brightness = Int((brightness / 255 * 100).rounded())
+        }
+        return action
+    }
+
+    /// Accessory ID → entity ID for every device a sync may touch in this home.
+    private func entityIdsByAccessory(_ context: SyncContext) async -> [String: String] {
+        var result: [String: String] = [:]
+        for accessory in context.home.accessories {
+            if let entityId = await entityId(for: accessory, homeId: context.home.id) {
+                result[accessory.id] = entityId
+            }
+        }
+        return result
+    }
+
+    private func dryRunScenesHAToHome(_ context: SyncContext) async throws -> DryRunResult {
+        progress = SyncProgress(title: "Reading scenes from \(context.server.name)")
+        let states = try await context.client.getStates()
+        let accessoryByEntity = Dictionary(
+            (await entityIdsByAccessory(context)).map { ($0.value, $0.key) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        var changes: [SyncChange] = []
+        for state in states {
+            guard let entityId = state["entity_id"] as? String, entityId.hasPrefix("scene."),
+                  let attributes = state["attributes"] as? [String: Any],
+                  let configId = attributes["id"] as? String else { continue }
+            let name = (attributes["friendly_name"] as? String) ?? entityId
+            if context.home.scene(named: name) != nil { continue }
+
+            progress = SyncProgress(title: "Reading “\(name)”")
+            guard let config = try await context.client.sceneConfig(id: configId),
+                  let members = config["entities"] as? [String: [String: Any]] else { continue }
+
+            let actions = members.compactMap { memberId, memberState in
+                accessoryByEntity[memberId].flatMap { Self.sceneAction(accessoryId: $0, homeAssistantState: memberState) }
+            }.sorted { $0.accessoryId < $1.accessoryId }
+            guard !actions.isEmpty else { continue }
+
+            changes.append(SyncChange(
+                action: .createScene,
+                title: "Create the scene “\(name)” in \(context.home.name)",
+                details: "\(actions.count) of its \(members.count) device\(members.count == 1 ? "" : "s") carry across from \(context.server.name).",
+                newName: name,
+                homeId: context.home.id,
+                sceneActions: actions
+            ))
+        }
+
+        return result(.scenesHAToHome, context: context, changes: changes)
+    }
+
+    private func dryRunScenesHomeToHA(_ context: SyncContext) async throws -> DryRunResult {
+        progress = SyncProgress(title: "Reading scenes from \(context.server.name)")
+        let states = try await context.client.getStates()
+        let existing = Set(states.compactMap { state -> String? in
+            guard (state["entity_id"] as? String)?.hasPrefix("scene.") == true else { return nil }
+            return ((state["attributes"] as? [String: Any])?["friendly_name"] as? String)?.lowercased()
+        })
+        let entityIds = await entityIdsByAccessory(context)
+
+        var changes: [SyncChange] = []
+        for scene in context.home.scenes where !existing.contains(scene.name.lowercased()) {
+            let actions = scene.actions.filter { entityIds[$0.accessoryId] != nil }
+            guard !actions.isEmpty else { continue }
+            changes.append(SyncChange(
+                action: .createScene,
+                title: "Create the scene “\(scene.name)” in \(context.server.name)",
+                details: "\(actions.count) of its \(scene.actions.count) device\(scene.actions.count == 1 ? "" : "s") carry across from \(context.home.name).",
+                newName: scene.name,
+                sceneActions: actions,
+                sceneEntityIds: entityIds.filter { id, _ in actions.contains { $0.accessoryId == id } }
+            ))
+        }
+
+        return result(.scenesHomeToHA, context: context, changes: changes)
     }
 
     // MARK: - Floors and zones

@@ -25,4 +25,40 @@ final class SyncPlanTests: XCTestCase {
         SyncUndoRecord.save(nil, to: defaults)
         XCTAssertNil(SyncUndoRecord.load(from: defaults))
     }
+
+    // MARK: Scenes
+
+    func testBrightnessConvertsBetween255And100() {
+        let action = SyncEngine.sceneAction(accessoryId: "a", homeAssistantState: ["state": "on", "brightness": 128])
+        XCTAssertEqual(action, SceneAction(accessoryId: "a", isOn: true, brightness: 50))
+
+        let state = SyncEngine.homeAssistantState(for: SceneAction(accessoryId: "a", isOn: true, brightness: 50), entityId: "light.kitchen")
+        XCTAssertEqual(state["state"] as? String, "on")
+        XCTAssertEqual(state["brightness"] as? Int, 128)
+    }
+
+    /// Only on and off mean the same thing on both sides; anything else stays behind.
+    func testStatesThatAreNotOnOrOffAreLeftOut() {
+        XCTAssertNil(SyncEngine.sceneAction(accessoryId: "a", homeAssistantState: ["state": "open"]))
+        XCTAssertEqual(
+            SyncEngine.sceneAction(accessoryId: "a", homeAssistantState: ["state": "off", "brightness": 200]),
+            SceneAction(accessoryId: "a", isOn: false)
+        )
+    }
+
+    func testSwitchesNeverGetABrightness() {
+        let state = SyncEngine.homeAssistantState(for: SceneAction(accessoryId: "a", isOn: true, brightness: 80), entityId: "switch.fan")
+        XCTAssertNil(state["brightness"])
+    }
+
+    /// Stored scheduled syncs name operations by raw value; new ones must not reuse old names.
+    func testOperationRawValuesAreUniqueAndRoundTrip() {
+        let raw = SyncOperation.allCases.map(\.rawValue)
+        XCTAssertEqual(Set(raw).count, raw.count)
+        for operation in SyncOperation.allCases {
+            XCTAssertEqual(SyncOperation.operation(forStoredRawValue: operation.rawValue), operation)
+            XCTAssertEqual(operation.inverted.inverted, operation)
+            XCTAssertEqual(operation.direction.operation(for: operation.subject), operation)
+        }
+    }
 }

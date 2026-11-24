@@ -296,6 +296,66 @@ final class HomeKitManager: NSObject, ObservableObject {
         refreshHomes()
     }
 
+    // MARK: - Scenes
+
+    /// Creates a scene from power and brightness actions. Accessories without those
+    /// characteristics are skipped rather than failing the whole scene.
+    @discardableResult
+    func createScene(homeId: String, name: String, actions: [SceneAction]) async throws -> SceneSummary {
+        guard let home = hkHome(byId: homeId) else {
+            throw BridgeError.notFound("Home not found")
+        }
+
+        let actionSet: HMActionSet = try await withCheckedThrowingContinuation { cont in
+            home.addActionSet(withName: name) { actionSet, error in
+                if let error {
+                    cont.resume(throwing: error)
+                } else if let actionSet {
+                    cont.resume(returning: actionSet)
+                } else {
+                    cont.resume(throwing: BridgeError.badRequest("Could not create scene"))
+                }
+            }
+        }
+
+        for action in actions {
+            guard let accessory = hkAccessory(byId: action.accessoryId) else { continue }
+            var writes: [(String, NSNumber)] = []
+            if let isOn = action.isOn { writes.append((HMCharacteristicTypePowerState, NSNumber(value: isOn))) }
+            if let brightness = action.brightness { writes.append((HMCharacteristicTypeBrightness, NSNumber(value: brightness))) }
+
+            for (type, value) in writes {
+                guard let characteristic = accessory.services
+                    .flatMap(\.characteristics)
+                    .first(where: { $0.characteristicType == type }) else { continue }
+                let write = HMCharacteristicWriteAction(characteristic: characteristic, targetValue: value)
+                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                    actionSet.addAction(write) { error in
+                        if let error { cont.resume(throwing: error) } else { cont.resume(returning: ()) }
+                    }
+                }
+            }
+        }
+
+        refreshHomes()
+        return Self.summary(for: actionSet)
+    }
+
+    func removeScene(id: String) async throws {
+        guard let home = manager?.homes.first(where: { $0.actionSets.contains { $0.uniqueIdentifier.uuidString == id } }),
+              let actionSet = home.actionSets.first(where: { $0.uniqueIdentifier.uuidString == id }) else {
+            throw BridgeError.notFound("Scene not found")
+        }
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            home.removeActionSet(actionSet) { error in
+                if let error { cont.resume(throwing: error) } else { cont.resume(returning: ()) }
+            }
+        }
+
+        refreshHomes()
+    }
+
     // MARK: - HomeKit objects
 
     private func hkZone(byId id: String) -> (HMHome, HMZone)? {
@@ -375,7 +435,32 @@ final class HomeKitManager: NSObject, ObservableObject {
                     name: zone.name,
                     roomIds: zone.rooms.map(\.uniqueIdentifier.uuidString)
                 )
+            },
+            scenes: home.actionSets
+                .filter { $0.actionSetType == HMActionSetTypeUserDefined }
+                .map(summary(for:))
+        )
+    }
+
+    /// A scene's power and brightness writes, one action per accessory.
+    private static func summary(for actionSet: HMActionSet) -> SceneSummary {
+        var byAccessory: [String: SceneAction] = [:]
+        for case let write as HMCharacteristicWriteAction<NSCopying> in actionSet.actions {
+            guard let accessory = write.characteristic.service?.accessory,
+                  let value = write.targetValue as? NSNumber else { continue }
+            let id = accessory.uniqueIdentifier.uuidString
+            var action = byAccessory[id] ?? SceneAction(accessoryId: id)
+            switch write.characteristic.characteristicType {
+            case HMCharacteristicTypePowerState: action.isOn = value.boolValue
+            case HMCharacteristicTypeBrightness: action.brightness = value.intValue
+            default: continue
             }
+            byAccessory[id] = action
+        }
+        return SceneSummary(
+            id: actionSet.uniqueIdentifier.uuidString,
+            name: actionSet.name,
+            actions: byAccessory.values.sorted { $0.accessoryId < $1.accessoryId }
         )
     }
 
