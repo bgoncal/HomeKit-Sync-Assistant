@@ -67,8 +67,8 @@ struct SyncPreferencesPayload: Codable, Equatable {
             }
             // Same instant on two devices: pick by value so both sides agree. A removal
             // sorts below every value, so `nil` and "" never tie.
-            let left = (mine.value != nil, mine.value ?? "")
-            let right = (theirs.value != nil, theirs.value ?? "")
+            let left = (mine.value == nil ? 0 : 1, mine.value ?? "")
+            let right = (theirs.value == nil ? 0 : 1, theirs.value ?? "")
             return left >= right ? mine : theirs
         }
     }
