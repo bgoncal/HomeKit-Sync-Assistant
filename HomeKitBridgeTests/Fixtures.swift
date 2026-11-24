@@ -152,6 +152,21 @@ enum Fixtures {
 
     // MARK: - Sync
 
+    static let differences = PairDifferences(
+        homeName: home.name,
+        serverName: houseServer.name,
+        roomsOnlyInAppleHome: ["Garage"],
+        areasOnlyInHomeAssistant: ["Cozinha", "Office"],
+        differentRoom: [
+            DeviceDifference(id: kitchenLight.id, deviceName: kitchenLight.name, appleHomeValue: "Kitchen", homeAssistantValue: "Cozinha")
+        ],
+        differentName: [
+            DeviceDifference(id: hallwaySensor.id, deviceName: hallwaySensor.name, appleHomeValue: hallwaySensor.name, homeAssistantValue: "Hallway Motion")
+        ],
+        unmatchedDevices: [nativeLock.name],
+        matchingCount: 1
+    )
+
     static let lastSync = SyncUndoRecord(
         id: UUID(uuidString: "EEEEEEEE-0000-0000-0000-000000000001")!,
         operation: .devicePlacementHAToHome,

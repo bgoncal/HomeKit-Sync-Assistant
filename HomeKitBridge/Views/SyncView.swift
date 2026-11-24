@@ -34,6 +34,12 @@ struct SyncView: View {
             onApply: { Task { await apply() } },
             onUndo: { Task { await undo() } }
         )
+        .navigationDestination(for: SyncRoute.self) { route in
+            switch route {
+            case .differences(let homeId, let serverId):
+                DifferencesView(homeId: homeId, serverId: serverId)
+            }
+        }
         .onAppear(perform: restoreChoice)
         .onChange(of: operation) { _, _ in clearPlan() }
         .onChange(of: homeId) { _, newValue in
@@ -220,6 +226,13 @@ struct SyncContent: View {
                 platformLabel(.homeAssistant)
             }
             .disabled(isWorking || servers.isEmpty)
+
+            if let home, let server {
+                NavigationLink(value: SyncRoute.differences(homeId: home.id, serverId: server.id)) {
+                    Label("Compare Both Sides", systemImage: "arrow.left.arrow.right")
+                }
+                .disabled(isWorking)
+            }
         } header: {
             Text("2 · Between")
         } footer: {

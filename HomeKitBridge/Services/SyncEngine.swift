@@ -791,6 +791,70 @@ final class SyncEngine: ObservableObject {
         return result(.deviceNamesHomeToHA, context: context, changes: changes)
     }
 
+    // MARK: - Differences
+
+    /// Everything that differs between one home and one server, without writing.
+    func differences(homeId: String, serverId: UUID) async throws -> PairDifferences {
+        isBusy = true
+        defer {
+            isBusy = false
+            progress = nil
+        }
+
+        let context = try await context(homeId: homeId, serverId: serverId)
+        progress = SyncProgress(title: "Reading \(context.server.name)")
+        let areas = try await context.client.fetchAreas()
+        let areaMap = try await buildEntityAreaMap(context)
+        let nameMap = try await buildEntityNameMap(context)
+
+        var result = PairDifferences(homeName: context.home.name, serverName: context.server.name)
+        let areaNames = areas.compactMap { $0["name"] as? String }
+            .filter { !preferences.isRoomExcluded(homeId: context.home.id, roomName: $0) }
+        let roomNames = context.home.rooms.filter {
+            !$0.isDefaultRoom && !preferences.isRoomExcluded(homeId: context.home.id, roomName: $0.name)
+        }.map(\.name)
+
+        let lowercasedAreas = Set(areaNames.map { $0.lowercased() })
+        let lowercasedRooms = Set(roomNames.map { $0.lowercased() })
+        result.roomsOnlyInAppleHome = roomNames.filter { !lowercasedAreas.contains($0.lowercased()) }.sorted()
+        result.areasOnlyInHomeAssistant = areaNames.filter { !lowercasedRooms.contains($0.lowercased()) }.sorted()
+
+        let accessories = context.home.accessories.filter { !preferences.isExcluded($0, homeId: context.home.id) }
+        for (index, accessory) in accessories.enumerated() {
+            progress = SyncProgress(title: "Comparing devices", detail: accessory.name, completed: index, total: accessories.count)
+            guard let entityId = await entityId(for: accessory, homeId: context.home.id),
+                  let haName = nameMap[entityId] else {
+                result.unmatchedDevices.append(accessory.name)
+                continue
+            }
+
+            var agrees = true
+            let area = areaMap[entityId] ?? ""
+            if accessory.roomName.caseInsensitiveCompare(area) != .orderedSame {
+                agrees = false
+                result.differentRoom.append(DeviceDifference(
+                    id: accessory.id,
+                    deviceName: accessory.name,
+                    appleHomeValue: accessory.roomName,
+                    homeAssistantValue: area.isEmpty ? "No area" : area
+                ))
+            }
+            if accessory.name != haName {
+                agrees = false
+                result.differentName.append(DeviceDifference(
+                    id: accessory.id,
+                    deviceName: accessory.name,
+                    appleHomeValue: accessory.name,
+                    homeAssistantValue: haName
+                ))
+            }
+            if agrees { result.matchingCount += 1 }
+        }
+
+        result.unmatchedDevices.sort { $0.localizedCompare($1) == .orderedAscending }
+        return result
+    }
+
     // MARK: - Matching
 
     /// The Home Assistant entity a device stands for: the one picked by hand, else

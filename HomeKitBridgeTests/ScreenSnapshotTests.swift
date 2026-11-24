@@ -346,6 +346,29 @@ final class SyncSnapshotTests: SnapshotTestCase {
 }
 
 @MainActor
+final class DifferencesSnapshotTests: SnapshotTestCase {
+    func testDifferences() {
+        assertScreen(NavigationStack { DifferencesContent(state: .loaded(Fixtures.differences)) }, named: "differences")
+    }
+
+    func testEverythingMatches() {
+        let inSync = PairDifferences(homeName: Fixtures.home.name, serverName: Fixtures.houseServer.name, matchingCount: 3)
+        assertScreen(NavigationStack { DifferencesContent(state: .loaded(inSync)) }, named: "differences-in-sync")
+    }
+
+    func testComparing() {
+        assertScreen(NavigationStack { DifferencesContent(state: .loading) }, named: "differences-loading")
+    }
+
+    func testCouldNotCompare() {
+        assertScreen(
+            NavigationStack { DifferencesContent(state: .failed("Home Assistant rejected the access token: Invalid access token")) },
+            named: "differences-failed"
+        )
+    }
+}
+
+@MainActor
 final class ActionsSnapshotTests: SnapshotTestCase {
     func testNoScheduledActions() {
         assertScreen(NavigationStack { ActionsContent(schedules: []) }, named: "actions-empty")

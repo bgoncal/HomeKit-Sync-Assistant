@@ -50,6 +50,8 @@
 		E77FDCE56B4109D40736FF2A /* EntityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77FDCE56B4109D40736FF2A /* EntityPickerView.swift */; };
 		E4A155707456A0C461FF2DFD /* ExclusionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A155707456A0C461FF2DFD /* ExclusionsView.swift */; };
 		E160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift */; };
+		E002733C80DB66394E6D20F2 /* PairDifferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F002733C80DB66394E6D20F2 /* PairDifferences.swift */; };
+		E0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -109,6 +111,8 @@
 		F77FDCE56B4109D40736FF2A /* EntityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityPickerView.swift; sourceTree = "<group>"; };
 		F4A155707456A0C461FF2DFD /* ExclusionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExclusionsView.swift; sourceTree = "<group>"; };
 		F160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPreferencesTests.swift; sourceTree = "<group>"; };
+		F002733C80DB66394E6D20F2 /* PairDifferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairDifferences.swift; sourceTree = "<group>"; };
+		F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DifferencesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -166,6 +170,7 @@
 		A4000004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				F002733C80DB66394E6D20F2 /* PairDifferences.swift */,
 				F05AE5525AD5C00011707431 /* SyncPreferences.swift */,
 				F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */,
 				A2000017 /* HomeModels.swift */,
@@ -195,6 +200,7 @@
 		A4000006 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */,
 				F4A155707456A0C461FF2DFD /* ExclusionsView.swift */,
 				F77FDCE56B4109D40736FF2A /* EntityPickerView.swift */,
 				A2000011 /* OnboardingView.swift */,
@@ -324,6 +330,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift in Sources */,
+				E002733C80DB66394E6D20F2 /* PairDifferences.swift in Sources */,
 				E4A155707456A0C461FF2DFD /* ExclusionsView.swift in Sources */,
 				E77FDCE56B4109D40736FF2A /* EntityPickerView.swift in Sources */,
 				E65756FF3633790EB3AB023D /* SyncPreferencesStore.swift in Sources */,
