@@ -40,28 +40,33 @@ enum StoreScreens {
                     serverId: .constant(Fixtures.houseServer.id),
                     direction: .constant(.homeAssistantToAppleHome),
                     subject: .constant(.placement),
-                    dryRunResult: Fixtures.placementPreview,
+                    dryRunResult: Fixtures.storePreview,
+                    skippedChangeIds: .constant([Fixtures.storePreview.changes[2].id]),
                     progress: nil,
                     errorMessage: nil,
                     isWorking: false
                 )
+                // The preview and its Apply button are what this screen is about.
+                .defaultScrollAnchor(.bottom)
             })),
-            Screen(name: "03-devices", view: AnyView(NavigationStack {
-                HomeDevicesContent(home: Fixtures.home, search: .constant(""))
+            Screen(name: "03-differences", view: AnyView(NavigationStack {
+                DifferencesContent(state: .loaded(Fixtures.differences))
             })),
-            Screen(name: "04-entities", view: AnyView(NavigationStack {
-                EntitiesContent(
-                    serverName: Fixtures.houseServer.name,
-                    serverId: Fixtures.houseServer.id,
-                    areas: Fixtures.entityAreas,
-                    search: .constant("")
+            Screen(name: "04-devices", view: AnyView(NavigationStack {
+                HomeDevicesContent(
+                    home: Fixtures.home,
+                    search: .constant(""),
+                    excludedAccessoryIds: [],
+                    excludedRoomNames: [Fixtures.hallwaySensor.roomName.lowercased()],
+                    manualEntityIds: [Fixtures.nativeLock.id: "lock.front_door"]
                 )
             })),
             Screen(name: "05-device", view: AnyView(NavigationStack {
                 DeviceDetailContent(
                     accessory: Fixtures.kitchenLight,
                     matchState: .matched(Fixtures.homeAssistantMatch),
-                    serverName: Fixtures.houseServer.name
+                    serverName: Fixtures.houseServer.name,
+                    onChooseEntity: {}
                 )
             })),
             Screen(name: "06-activity", view: AnyView(NavigationStack {

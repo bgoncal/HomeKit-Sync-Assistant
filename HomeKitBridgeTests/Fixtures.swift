@@ -167,6 +167,34 @@ enum Fixtures {
         matchingCount: 1
     )
 
+    /// A fuller preview for the store screenshot: a room to create, two moves, and
+    /// one the person has unticked.
+    static let storePreview = DryRunResult(
+        id: UUID(uuidString: "DDDDDDDD-0000-0000-0000-000000000002")!,
+        operation: .devicePlacementHAToHome,
+        homeId: home.id,
+        serverId: houseServer.id,
+        summary: SyncOperation.devicePlacementHAToHome.summary(changeCount: 4),
+        changes: placementPreview.changes + [
+            SyncChange(
+                id: UUID(uuidString: "CCCCCCCC-0000-0000-0000-000000000003")!,
+                action: .moveAccessory,
+                title: "Move “Hallway Motion” in Apple Home",
+                details: "Room Hallway → Entrance, to match its area in House.",
+                accessoryId: hallwaySensor.id,
+                targetRoomName: "Entrance"
+            ),
+            SyncChange(
+                id: UUID(uuidString: "CCCCCCCC-0000-0000-0000-000000000004")!,
+                action: .renameAccessory,
+                title: "Rename “Front Door” in Apple Home",
+                details: "Name Front Door → Front Door Lock, taken from House.",
+                accessoryId: nativeLock.id,
+                newName: "Front Door Lock"
+            )
+        ]
+    )
+
     static let lastSync = SyncUndoRecord(
         id: UUID(uuidString: "EEEEEEEE-0000-0000-0000-000000000001")!,
         operation: .devicePlacementHAToHome,
