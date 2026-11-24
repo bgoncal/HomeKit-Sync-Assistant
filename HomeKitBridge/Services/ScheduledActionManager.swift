@@ -79,7 +79,7 @@ final class ScheduledActionManager: ObservableObject {
     /// Scheduled syncs are a Mac feature. iPhone and iPad suspend the app within
     /// seconds of it leaving the screen, so a daily timer there would fire only if
     /// the app happened to be open — which is worse than not offering it at all.
-    static var isSupported: Bool {
+    nonisolated static var isSupported: Bool {
         #if targetEnvironment(macCatalyst) || os(macOS)
         return true
         #else
