@@ -26,6 +26,12 @@ final class SyncPlanTests: XCTestCase {
         XCTAssertNil(SyncUndoRecord.load(from: defaults))
     }
 
+    func testAnUndoExpiresAfterADay() {
+        let record = Fixtures.lastSync
+        XCTAssertFalse(record.isExpired(now: record.date.addingTimeInterval(60 * 60)))
+        XCTAssertTrue(record.isExpired(now: record.date.addingTimeInterval(25 * 60 * 60)))
+    }
+
     // MARK: Scenes
 
     func testBrightnessConvertsBetween255And100() {

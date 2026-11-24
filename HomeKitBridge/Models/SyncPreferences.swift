@@ -16,12 +16,35 @@ struct PreferenceEntry: Codable, Equatable {
 ///
 /// Keys and values are identifiers only — never a token, never an address.
 struct SyncPreferencesPayload: Codable, Equatable {
-    /// Accessory ID → entity ID.
+    /// Accessory ID → "serverId|entityId": a pairing is made against one server's list.
     var manualPairings: [String: PreferenceEntry] = [:]
     /// Accessory ID → "1" while excluded.
     var excludedAccessories: [String: PreferenceEntry] = [:]
     /// `SyncPreferencesPayload.roomKey(homeId:roomName:)` → the room's name while excluded.
     var excludedRooms: [String: PreferenceEntry] = [:]
+
+    init(
+        manualPairings: [String: PreferenceEntry] = [:],
+        excludedAccessories: [String: PreferenceEntry] = [:],
+        excludedRooms: [String: PreferenceEntry] = [:]
+    ) {
+        self.manualPairings = manualPairings
+        self.excludedAccessories = excludedAccessories
+        self.excludedRooms = excludedRooms
+    }
+
+    /// Every map is optional when decoding, so a later version can add one without
+    /// an older payload failing to decode — which would read as "nothing excluded".
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        manualPairings = try container.decodeIfPresent([String: PreferenceEntry].self, forKey: .manualPairings) ?? [:]
+        excludedAccessories = try container.decodeIfPresent([String: PreferenceEntry].self, forKey: .excludedAccessories) ?? [:]
+        excludedRooms = try container.decodeIfPresent([String: PreferenceEntry].self, forKey: .excludedRooms) ?? [:]
+    }
+
+    static func pairingValue(serverId: UUID, entityId: String) -> String {
+        "\(serverId.uuidString)|\(entityId)"
+    }
 
     static func roomKey(homeId: String, roomName: String) -> String {
         "\(homeId)|\(roomName.lowercased())"
@@ -42,8 +65,11 @@ struct SyncPreferencesPayload: Codable, Equatable {
             if mine.updatedAt != theirs.updatedAt {
                 return mine.updatedAt > theirs.updatedAt ? mine : theirs
             }
-            // Same instant on two devices: pick by value so both sides agree.
-            return (mine.value ?? "") >= (theirs.value ?? "") ? mine : theirs
+            // Same instant on two devices: pick by value so both sides agree. A removal
+            // sorts below every value, so `nil` and "" never tie.
+            let left = (mine.value != nil, mine.value ?? "")
+            let right = (theirs.value != nil, theirs.value ?? "")
+            return left >= right ? mine : theirs
         }
     }
 }

@@ -405,7 +405,8 @@ final class SyncEngine: ObservableObject {
         self.connections = connections
         self.preferences = preferences
         self.defaults = defaults
-        self.lastUndo = SyncUndoRecord.load(from: defaults)
+        let stored = SyncUndoRecord.load(from: defaults)
+        self.lastUndo = stored?.isExpired() == true ? nil : stored
     }
 
     /// One Apple Home, the Home Assistant server it is paired with, and the open
@@ -534,6 +535,10 @@ final class SyncEngine: ObservableObject {
     /// deleted by hand since) are logged and skipped rather than stopping the rest.
     func undoLastSync() async throws {
         guard let record = lastUndo else { return }
+        guard !record.isExpired() else {
+            setLastUndo(nil)
+            throw BridgeError.badRequest("That sync is more than a day old, so it can no longer be undone.")
+        }
         isBusy = true
         defer {
             isBusy = false
@@ -544,10 +549,29 @@ final class SyncEngine: ObservableObject {
         let steps = Array(record.steps.reversed())
         logStore.add(category: .sync, message: "Undoing: \(record.operation.displayTitle)", details: "\(steps.count) step\(steps.count == 1 ? "" : "s") in \(record.destinationName)")
 
+        // Home Assistant's current values, to tell an untouched change from a newer one.
+        var registry: [String: [String: Any]] = [:]
+        var devices: [[String: Any]] = []
+        var areas: [[String: Any]] = []
+        if record.operation.direction.destination == .homeAssistant {
+            for entry in (try? await context.client.fetchEntityRegistry()) ?? [] {
+                if let entityId = entry["entity_id"] as? String { registry[entityId] = entry }
+            }
+            devices = (try? await context.client.fetchDeviceRegistry()) ?? []
+            areas = (try? await context.client.fetchAreas()) ?? []
+        }
+        let current = UndoSnapshot(registry: registry, devices: devices, areas: areas)
+
         var failCount = 0
+        var skipCount = 0
         for (index, step) in steps.enumerated() {
             progress = SyncProgress(title: "Undoing change \(index + 1) of \(steps.count)", completed: index, total: steps.count)
             do {
+                if let reason = staleReason(step, context: context, current: current) {
+                    skipCount += 1
+                    logStore.add(category: .sync, message: "Left as it is", details: reason)
+                    continue
+                }
                 try await perform(step, context: context)
             } catch {
                 failCount += 1
@@ -556,20 +580,65 @@ final class SyncEngine: ObservableObject {
         }
 
         setLastUndo(nil)
-        logStore.add(category: .sync, message: "Undone: \(record.operation.displayTitle)", details: "\(steps.count - failCount) restored, \(failCount) failed in \(record.destinationName)")
+        logStore.add(
+            category: .sync,
+            message: "Undone: \(record.operation.displayTitle)",
+            details: "\(steps.count - failCount - skipCount) restored, \(skipCount) changed since and left alone, \(failCount) failed in \(record.destinationName)"
+        )
+    }
+
+    private struct UndoSnapshot {
+        let registry: [String: [String: Any]]
+        let devices: [[String: Any]]
+        let areas: [[String: Any]]
+    }
+
+    /// Why a step must not be undone, or `nil` when it still holds what the sync wrote.
+    private func staleReason(_ step: UndoStep, context: SyncContext, current: UndoSnapshot) -> String? {
+        let home = homeKitManager.home(byId: context.home.id) ?? context.home
+        switch step {
+        case .renameAccessory(let accessoryId, _, let written):
+            guard let accessory = home.accessory(id: accessoryId) else { return "A renamed device is no longer in \(home.name)." }
+            return accessory.name == written ? nil : "“\(accessory.name)” was renamed again after the sync."
+        case .moveAccessory(let accessoryId, _, let writtenRoomId):
+            guard let accessory = home.accessory(id: accessoryId) else { return "A moved device is no longer in \(home.name)." }
+            return accessory.roomId == writtenRoomId ? nil : "“\(accessory.name)” was moved again after the sync."
+        case .removeRoom(let roomId, let name):
+            return home.accessories.contains { $0.roomId == roomId } ? "“\(name)” has devices in it now, so it was kept." : nil
+        case .removeZone(let zoneId, let name):
+            return home.zones.first { $0.id == zoneId }?.roomIds.isEmpty == false ? "The zone “\(name)” still has rooms, so it was kept." : nil
+        case .renameEntity(let entityId, _, let written):
+            let name = current.registry[entityId]?["name"] as? String
+            return name == written ? nil : "\(entityId) was renamed again after the sync."
+        case .setEntityArea(let entityId, _, let writtenAreaId):
+            let areaId = current.registry[entityId]?["area_id"] as? String
+            return areaId == writtenAreaId ? nil : "\(entityId) was moved again after the sync."
+        case .removeArea(let areaId, let name):
+            let inUse = current.registry.values.contains { ($0["area_id"] as? String) == areaId }
+                || current.devices.contains { ($0["area_id"] as? String) == areaId }
+            return inUse ? "The area “\(name)” has devices in it now, so it was kept." : nil
+        case .setAreaFloor(let areaId, _, let writtenFloorId):
+            let floorId = current.areas.first { ($0["area_id"] as? String) == areaId }?["floor_id"] as? String
+            return floorId == writtenFloorId ? nil : "An area was moved to another floor after the sync."
+        case .removeFloor(let floorId, let name):
+            let inUse = current.areas.contains { ($0["floor_id"] as? String) == floorId }
+            return inUse ? "The floor “\(name)” has areas on it, so it was kept." : nil
+        case .removeRoomFromZone, .removeScene, .removeHomeAssistantScene:
+            return nil
+        }
     }
 
     private func perform(_ step: UndoStep, context: SyncContext) async throws {
         switch step {
-        case .renameAccessory(let accessoryId, let name):
+        case .renameAccessory(let accessoryId, let name, _):
             try await homeKitManager.renameAccessory(id: accessoryId, newName: name)
-        case .moveAccessory(let accessoryId, let roomId):
+        case .moveAccessory(let accessoryId, let roomId, _):
             try await homeKitManager.moveAccessory(id: accessoryId, toRoomId: roomId)
         case .removeRoom(let roomId, _):
             try await homeKitManager.removeRoom(id: roomId)
-        case .renameEntity(let entityId, let name):
+        case .renameEntity(let entityId, let name, _):
             _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": name.map { $0 as Any } ?? NSNull()])
-        case .setEntityArea(let entityId, let areaId):
+        case .setEntityArea(let entityId, let areaId, _):
             _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": areaId.map { $0 as Any } ?? NSNull()])
         case .removeArea(let areaId, _):
             try await context.client.deleteArea(areaId: areaId)
@@ -579,7 +648,7 @@ final class SyncEngine: ObservableObject {
             try await homeKitManager.removeRoom(id: roomId, fromZoneId: zoneId)
         case .removeFloor(let floorId, _):
             try await context.client.deleteFloor(floorId: floorId)
-        case .setAreaFloor(let areaId, let floorId):
+        case .setAreaFloor(let areaId, let floorId, _):
             try await context.client.setFloor(floorId, forAreaId: areaId)
         case .removeScene(let sceneId, _):
             try await homeKitManager.removeScene(id: sceneId)
@@ -656,7 +725,7 @@ final class SyncEngine: ObservableObject {
                 let previousRoomId = homeKitManager.accessory(byId: accessoryId)?.roomId
                 try await homeKitManager.moveAccessory(id: accessoryId, toRoomId: resolvedRoomId)
                 if let previousRoomId {
-                    steps.append(.moveAccessory(accessoryId: accessoryId, roomId: previousRoomId))
+                    steps.append(.moveAccessory(accessoryId: accessoryId, roomId: previousRoomId, writtenRoomId: resolvedRoomId))
                 }
                 return steps
             default:
@@ -682,7 +751,7 @@ final class SyncEngine: ObservableObject {
             guard let finalAreaId = areaId else { return steps }
             let previousAreaId = registry[entityId]?["area_id"] as? String
             _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": finalAreaId])
-            steps.append(.setEntityArea(entityId: entityId, areaId: previousAreaId))
+            steps.append(.setEntityArea(entityId: entityId, areaId: previousAreaId, writtenAreaId: finalAreaId))
             return steps
 
         case .deviceNamesHAToHome:
@@ -691,7 +760,7 @@ final class SyncEngine: ObservableObject {
                   let newName = change.newName else { return [] }
             let previousName = homeKitManager.accessory(byId: accessoryId)?.name
             try await homeKitManager.renameAccessory(id: accessoryId, newName: newName)
-            return previousName.map { [.renameAccessory(accessoryId: accessoryId, name: $0)] } ?? []
+            return previousName.map { [.renameAccessory(accessoryId: accessoryId, name: $0, written: newName)] } ?? []
 
         case .deviceNamesHomeToHA:
             guard change.action == .renameAccessory,
@@ -699,7 +768,7 @@ final class SyncEngine: ObservableObject {
                   let newName = change.newName else { return [] }
             let previousName = registry[entityId]?["name"] as? String
             _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": newName])
-            return [.renameEntity(entityId: entityId, name: previousName)]
+            return [.renameEntity(entityId: entityId, name: previousName, written: newName)]
 
         case .zonesHAToHome:
             return try await executeZoneChangeInAppleHome(change, context: context)
@@ -755,7 +824,7 @@ final class SyncEngine: ObservableObject {
     private func entityIdsByAccessory(_ context: SyncContext) async -> [String: String] {
         var result: [String: String] = [:]
         for accessory in context.home.accessories {
-            if let entityId = await entityId(for: accessory, homeId: context.home.id) {
+            if let entityId = await entityId(for: accessory, in: context) {
                 result[accessory.id] = entityId
             }
         }
@@ -878,7 +947,7 @@ final class SyncEngine: ObservableObject {
             guard let floorId else { return steps }
             let previous = change.extraData?["Previous floor"]
             try await context.client.setFloor(floorId, forAreaId: areaId)
-            steps.append(.setAreaFloor(areaId: areaId, floorId: previous))
+            steps.append(.setAreaFloor(areaId: areaId, floorId: previous, writtenFloorId: floorId))
             return steps
         default:
             return []
@@ -1033,7 +1102,7 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await entityId(for: accessory, homeId: context.home.id),
+            guard let serial = await entityId(for: accessory, in: context),
                   let targetAreaName = entityAreaMap[serial] else { continue }
 
             let currentRoomName = accessory.roomName
@@ -1074,7 +1143,7 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await entityId(for: accessory, homeId: context.home.id) else { continue }
+            guard let serial = await entityId(for: accessory, in: context) else { continue }
 
             let roomName = accessory.roomName
             guard roomName != RoomSummary.defaultRoomName, !roomName.isEmpty else { continue }
@@ -1101,7 +1170,7 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await entityId(for: accessory, homeId: context.home.id),
+            guard let serial = await entityId(for: accessory, in: context),
                   let targetName = nameMap[serial] else { continue }
             if accessory.name == targetName { continue }
 
@@ -1124,7 +1193,7 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await entityId(for: accessory, homeId: context.home.id),
+            guard let serial = await entityId(for: accessory, in: context),
                   let haName = nameMap[serial] else { continue }
             if accessory.name == haName { continue }
 
@@ -1172,7 +1241,7 @@ final class SyncEngine: ObservableObject {
         let accessories = context.home.accessories.filter { !preferences.isExcluded($0, homeId: context.home.id) }
         for (index, accessory) in accessories.enumerated() {
             progress = SyncProgress(title: "Comparing devices", detail: accessory.name, completed: index, total: accessories.count)
-            guard let entityId = await entityId(for: accessory, homeId: context.home.id),
+            guard let entityId = await entityId(for: accessory, in: context),
                   let haName = nameMap[entityId] else {
                 result.unmatchedDevices.append(accessory.name)
                 continue
@@ -1210,9 +1279,9 @@ final class SyncEngine: ObservableObject {
     /// The Home Assistant entity a device stands for: the one picked by hand, else
     /// the entity ID HomeKit Bridge writes into the serial number. `nil` when the
     /// device or its room is excluded, or it is not bridged at all.
-    private func entityId(for accessory: AccessorySummary, homeId: String) async -> String? {
-        guard !preferences.isExcluded(accessory, homeId: homeId) else { return nil }
-        if let manual = preferences.manualEntityId(forAccessoryId: accessory.id) { return manual }
+    private func entityId(for accessory: AccessorySummary, in context: SyncContext) async -> String? {
+        guard !preferences.isExcluded(accessory, homeId: context.home.id) else { return nil }
+        if let manual = preferences.manualEntityId(forAccessoryId: accessory.id, serverId: context.server.id) { return manual }
         return await homeKitManager.refreshSerialNumber(accessoryId: accessory.id)
     }
 

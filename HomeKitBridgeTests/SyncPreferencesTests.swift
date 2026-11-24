@@ -31,6 +31,22 @@ final class SyncPreferencesPayloadTests: XCTestCase {
         XCTAssertEqual(SyncPreferencesPayload.merged(merged, merged), merged)
     }
 
+    /// A removal and an empty value at the same instant must still merge the same way round.
+    func testARemovalAndAnEmptyValueDoNotTie() {
+        let one = SyncPreferencesPayload(manualPairings: ["a": PreferenceEntry(value: "", updatedAt: early)])
+        let two = SyncPreferencesPayload(manualPairings: ["a": PreferenceEntry(value: nil, updatedAt: early)])
+        XCTAssertEqual(SyncPreferencesPayload.merged(one, two), SyncPreferencesPayload.merged(two, one))
+    }
+
+    /// A later version may add a map; an older payload without it must still decode.
+    func testAPayloadMissingAMapStillDecodes() throws {
+        let json = #"{"excludedAccessories":{"a":{"value":"1","updatedAt":0}}}"#
+        let payload = try JSONDecoder().decode(SyncPreferencesPayload.self, from: Data(json.utf8))
+        XCTAssertEqual(payload.excludedAccessories["a"]?.value, "1")
+        XCTAssertTrue(payload.manualPairings.isEmpty)
+        XCTAssertTrue(payload.excludedRooms.isEmpty)
+    }
+
     func testKeysFromBothSidesAreKept() {
         let local = SyncPreferencesPayload(manualPairings: ["a": PreferenceEntry(value: "light.one", updatedAt: early)])
         let remote = SyncPreferencesPayload(manualPairings: ["b": PreferenceEntry(value: "lock.two", updatedAt: early)])
@@ -52,12 +68,15 @@ final class SyncPreferencesStoreTests: XCTestCase {
     func testChoicesSurviveARelaunchAndReachTheCloud() {
         let cloud = FakeCloudStore()
         let store = SyncPreferencesStore(defaults: defaults, cloud: cloud)
-        store.setManualEntityId("lock.front_door", forAccessoryId: "lock")
+        let server = UUID(uuidString: "AAAAAAAA-0000-0000-0000-000000000001")!
+        store.setManualEntityId("lock.front_door", serverId: server, forAccessoryId: "lock")
         store.setAccessoryExcluded(true, accessoryId: "light")
         store.setRoomExcluded(true, homeId: "home", roomName: "Garage")
 
         let reloaded = SyncPreferencesStore(defaults: defaults)
-        XCTAssertEqual(reloaded.manualEntityId(forAccessoryId: "lock"), "lock.front_door")
+        XCTAssertEqual(reloaded.manualEntityId(forAccessoryId: "lock", serverId: server), "lock.front_door")
+        // A pairing made against one server's list never applies to another server.
+        XCTAssertNil(reloaded.manualEntityId(forAccessoryId: "lock", serverId: UUID()))
         XCTAssertTrue(reloaded.isAccessoryExcluded("light"))
         XCTAssertTrue(reloaded.isRoomExcluded(homeId: "home", roomName: "garage"))
         XCTAssertEqual(reloaded.excludedRoomNames(homeId: "home"), ["garage"])
@@ -77,6 +96,14 @@ final class SyncPreferencesStoreTests: XCTestCase {
         cloud.onExternalChange?()
 
         XCTAssertFalse(store.isAccessoryExcluded("light"))
+    }
+
+    /// A device that has choices shares them even when iCloud holds nothing yet.
+    func testLocalChoicesAreWrittenUpWhenTheCloudIsEmpty() {
+        SyncPreferencesStore(defaults: defaults).setAccessoryExcluded(true, accessoryId: "light")
+        let cloud = FakeCloudStore()
+        _ = SyncPreferencesStore(defaults: defaults, cloud: cloud)
+        XCTAssertNotNil(cloud.storage[SyncPreferencesStore.defaultsKey])
     }
 
     func testAnExcludedRoomExcludesItsDevices() {

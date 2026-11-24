@@ -39,6 +39,7 @@ struct HomeView: View {
             serverPort: server.port,
             scheduleCount: scheduledActionManager.schedules.count,
             exclusionCount: preferences.exclusionCount,
+            isSyncingWithCloud: connections.isSyncingWithCloud && preferences.isSyncingWithCloud,
             tipProduct: tipProduct,
             tipState: tipState,
             appVersion: Bundle.main.appVersionString,
@@ -115,6 +116,7 @@ struct HomeContent: View {
     var scheduleCount: Int = 0
     var supportsScheduledActions: Bool = ScheduledActionManager.isSupported
     var exclusionCount: Int = 0
+    var isSyncingWithCloud: Bool = true
     var tipProduct: TipProduct?
     var tipState: TipState = .idle
     var appVersion: String = ""
@@ -147,6 +149,7 @@ struct HomeContent: View {
                 .sheet(isPresented: $isShowingSettings) {
                     NavigationStack {
                         SettingsContent(
+                            isSyncingWithCloud: isSyncingWithCloud,
                             tipProduct: tipProduct,
                             tipState: tipState,
                             appVersion: appVersion,
@@ -300,6 +303,7 @@ struct HomeContent: View {
 
 /// The setup guide, the tip jar and the small print, behind the gear on Home.
 struct SettingsContent: View {
+    var isSyncingWithCloud: Bool = true
     var tipProduct: TipProduct?
     var tipState: TipState = .idle
     var appVersion: String = ""
@@ -314,6 +318,18 @@ struct SettingsContent: View {
                 }
             } footer: {
                 Text("Walks through how the two sides are paired, and where the address and token go.")
+            }
+
+            Section {
+                LabeledContent {
+                    Text(isSyncingWithCloud ? "On" : "Off")
+                } label: {
+                    Label("iCloud", systemImage: isSyncingWithCloud ? "icloud" : "icloud.slash")
+                }
+            } footer: {
+                Text(isSyncingWithCloud
+                     ? "Your servers, exclusions and hand-made pairings follow you to your other devices. Tokens travel in iCloud Keychain."
+                     : "iCloud is off, so servers, exclusions and pairings stay on this device. A sync on another device will still change what is excluded here.")
             }
 
             supportSection

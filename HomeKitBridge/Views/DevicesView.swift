@@ -50,8 +50,9 @@ struct HomeDevicesView: View {
 
     private var manualEntityIds: [String: String] {
         var result: [String: String] = [:]
+        guard let server = connections.suggestedServer(forHomeId: homeId) else { return [:] }
         for accessory in home?.accessories ?? [] {
-            if let entityId = preferences.manualEntityId(forAccessoryId: accessory.id) {
+            if let entityId = preferences.manualEntityId(forAccessoryId: accessory.id, serverId: server.id) {
                 result[accessory.id] = entityId
             }
         }
@@ -237,7 +238,9 @@ private struct DeviceDetailView: View {
     @State private var isPickingEntity = false
 
     private var current: AccessorySummary { resolvedAccessory ?? accessory }
-    private var manualEntityId: String? { preferences.manualEntityId(forAccessoryId: accessory.id) }
+    private var manualEntityId: String? {
+        server.flatMap { preferences.manualEntityId(forAccessoryId: accessory.id, serverId: $0.id) }
+    }
 
     var body: some View {
         DeviceDetailContent(
@@ -247,10 +250,13 @@ private struct DeviceDetailView: View {
             isExcluded: preferences.isAccessoryExcluded(accessory.id),
             isRoomExcluded: preferences.isRoomExcluded(homeId: homeId, roomName: current.roomName),
             isPairedByHand: manualEntityId != nil,
+            isSyncingWithCloud: preferences.isSyncingWithCloud,
             onSetExcluded: { preferences.setAccessoryExcluded($0, accessoryId: accessory.id) },
             onChooseEntity: server == nil ? nil : { isPickingEntity = true },
             onUseAutomaticPairing: {
-                preferences.setManualEntityId(nil, forAccessoryId: accessory.id)
+                if let server {
+                    preferences.setManualEntityId(nil, serverId: server.id, forAccessoryId: accessory.id)
+                }
                 Task { await loadMatch() }
             }
         )
@@ -265,7 +271,7 @@ private struct DeviceDetailView: View {
                         deviceName: current.name,
                         selectedEntityId: manualEntityId ?? current.entityId,
                         onPick: { entityId in
-                            preferences.setManualEntityId(entityId, forAccessoryId: accessory.id)
+                            preferences.setManualEntityId(entityId, serverId: server.id, forAccessoryId: accessory.id)
                             Task { await loadMatch() }
                         }
                     )
@@ -317,6 +323,7 @@ struct DeviceDetailContent: View {
     /// The whole room is left out, which overrides the device's own switch.
     var isRoomExcluded: Bool = false
     var isPairedByHand: Bool = false
+    var isSyncingWithCloud: Bool = true
     var onSetExcluded: (Bool) -> Void = { _ in }
     /// `nil` when there is no server to pick from.
     var onChooseEntity: (() -> Void)?
@@ -379,7 +386,9 @@ struct DeviceDetailContent: View {
             if isRoomExcluded {
                 Text("Every device in “\(accessory.roomName)” is left out. Include the room again from the device list.")
             } else if isExcluded {
-                Text("Every sync leaves this device alone: its name and room stay as they are on both sides.")
+                Text(isSyncingWithCloud
+                     ? "Every sync leaves this device alone: its name and room stay as they are on both sides."
+                     : "Syncs on this device leave it alone. iCloud is off, so a sync on another device will still change it.")
             } else {
                 Text("Turn off to keep this device's name and room exactly as they are, whatever a sync would change.")
             }

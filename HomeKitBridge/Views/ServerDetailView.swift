@@ -131,7 +131,7 @@ struct ServerDetailContent: View {
 
     private var connectionFooter: String {
         if server.address.isEmpty || server.token.isEmpty {
-            return "Enter the address you use to open Home Assistant, and a long-lived access token from your profile page. The token is stored on this device."
+            return "Enter the address you use to open Home Assistant, and a long-lived access token from your profile page. The token is kept in your keychain, and iCloud Keychain carries it to your other devices."
         }
         if let problem = server.configurationProblem {
             return problem
@@ -139,7 +139,7 @@ struct ServerDetailContent: View {
         if let url = HAConfiguration.webSocketURL(for: server.address) {
             return "Connects to \(url.absoluteString)."
         }
-        return "The token is stored on this device."
+        return "The token is kept in your keychain, and iCloud Keychain carries it to your other devices."
     }
 
     private var connectionResult: (title: String, message: String, systemImage: String, tint: Color)? {

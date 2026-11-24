@@ -421,7 +421,7 @@ struct SyncContent: View {
         } header: {
             Text("Last Sync")
         } footer: {
-            Text("Puts back the \(record.steps.count) change\(record.steps.count == 1 ? "" : "s") it made in \(record.destinationName). Only this device remembers them, and only until the next sync.")
+            Text("Puts back the \(record.steps.count) change\(record.steps.count == 1 ? "" : "s") it made in \(record.destinationName). Anything changed again since is left as it is. Only this device remembers them, for a day.")
         }
     }
 

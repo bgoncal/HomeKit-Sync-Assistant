@@ -175,7 +175,7 @@ enum Fixtures {
         destinationName: home.name,
         date: Date(timeIntervalSince1970: 1_795_000_000),
         steps: [
-            .moveAccessory(accessoryId: kitchenLight.id, roomId: "room-kitchen"),
+            .moveAccessory(accessoryId: kitchenLight.id, roomId: "room-kitchen", writtenRoomId: "room-cozinha"),
             .removeRoom(roomId: "room-cozinha", name: "Cozinha")
         ]
     )

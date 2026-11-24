@@ -20,7 +20,7 @@ struct ExclusionsView: View {
     @EnvironmentObject private var preferences: SyncPreferencesStore
 
     var body: some View {
-        ExclusionsContent(items: items) { item in
+        ExclusionsContent(items: items, isSyncingWithCloud: preferences.isSyncingWithCloud) { item in
             switch item.kind {
             case .device(let accessoryId):
                 preferences.setAccessoryExcluded(false, accessoryId: accessoryId)
@@ -30,24 +30,43 @@ struct ExclusionsView: View {
         }
     }
 
+    /// Every live exclusion, including ones whose device, room or home is gone, so
+    /// the list always matches the count on Home and leftovers can be cleared.
     private var items: [ExclusionItem] {
         var result: [ExclusionItem] = []
-        for home in homeKitManager.homes {
-            for roomName in preferences.excludedRoomNames(homeId: home.id).sorted() {
-                let name = home.room(named: roomName)?.name ?? roomName
-                result.append(ExclusionItem(
-                    id: "room|\(home.id)|\(roomName)",
-                    kind: .room(homeId: home.id, roomName: name),
-                    title: name,
-                    subtitle: home.name
-                ))
+        let homesById = Dictionary(homeKitManager.homes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+        for room in preferences.excludedRooms.sorted(by: { $0.name.localizedCompare($1.name) == .orderedAscending }) {
+            let home = homesById[room.homeId]
+            let subtitle: String
+            if let home {
+                subtitle = home.room(named: room.name) == nil ? "\(home.name) · No room with this name now" : home.name
+            } else {
+                subtitle = "Home no longer available"
             }
-            for accessory in home.accessories where preferences.isAccessoryExcluded(accessory.id) {
+            result.append(ExclusionItem(
+                id: "room|\(room.homeId)|\(room.key)",
+                kind: .room(homeId: room.homeId, roomName: room.name),
+                title: room.name,
+                subtitle: subtitle
+            ))
+        }
+
+        let accessories = homeKitManager.homes.flatMap { home in home.accessories.map { (home, $0) } }
+        for accessoryId in preferences.excludedAccessoryIds.sorted() {
+            if let (home, accessory) = accessories.first(where: { $0.1.id == accessoryId }) {
                 result.append(ExclusionItem(
-                    id: "device|\(accessory.id)",
-                    kind: .device(accessoryId: accessory.id),
+                    id: "device|\(accessoryId)",
+                    kind: .device(accessoryId: accessoryId),
                     title: accessory.name,
                     subtitle: "\(home.name) · \(accessory.roomName)"
+                ))
+            } else {
+                result.append(ExclusionItem(
+                    id: "device|\(accessoryId)",
+                    kind: .device(accessoryId: accessoryId),
+                    title: "Removed Device",
+                    subtitle: "No longer in Apple Home"
                 ))
             }
         }
@@ -57,6 +76,7 @@ struct ExclusionsView: View {
 
 struct ExclusionsContent: View {
     let items: [ExclusionItem]
+    var isSyncingWithCloud: Bool = true
     var onInclude: (ExclusionItem) -> Void = { _ in }
 
     private var rooms: [ExclusionItem] {
@@ -86,6 +106,15 @@ struct ExclusionsContent: View {
                     Text("Devices")
                 } footer: {
                     Text("These keep their name and room on both sides, whatever a sync would change.")
+                }
+            }
+
+            if !items.isEmpty {
+                Section {
+                } footer: {
+                    Text(isSyncingWithCloud
+                         ? "Exclusions are shared through iCloud, so your other devices leave these alone too."
+                         : "iCloud is off, so these exclusions are only on this device. A sync on another device will still change them.")
                 }
             }
         }

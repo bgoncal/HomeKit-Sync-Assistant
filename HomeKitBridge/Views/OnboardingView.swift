@@ -435,7 +435,7 @@ struct OnboardingContent: View {
                 if !server.token.isEmpty, let problem = HAConfiguration.tokenProblem(server.token) {
                     Text(problem).foregroundStyle(.orange)
                 } else {
-                    Text("In Home Assistant: your profile → Security → Long-lived access tokens → Create token. The token is stored on this device.")
+                    Text("In Home Assistant: your profile → Security → Long-lived access tokens → Create token. The token is kept in your keychain, and iCloud Keychain carries it to your other devices.")
                 }
             }
 

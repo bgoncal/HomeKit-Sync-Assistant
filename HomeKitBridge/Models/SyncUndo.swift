@@ -4,18 +4,19 @@ import Foundation
 ///
 /// Recorded just before each change is written, from the destination's state at
 /// that moment, so an undo restores what was really there rather than what the
-/// preview assumed.
+/// preview assumed. Each step also remembers what the sync wrote: an undo skips any
+/// step whose value has changed again since, rather than overwrite newer work.
 enum UndoStep: Codable, Equatable {
     /// Apple Home: give an accessory its old name back.
-    case renameAccessory(accessoryId: String, name: String)
+    case renameAccessory(accessoryId: String, name: String, written: String)
     /// Apple Home: put an accessory back in the room it was in.
-    case moveAccessory(accessoryId: String, roomId: String)
+    case moveAccessory(accessoryId: String, roomId: String, writtenRoomId: String)
     /// Apple Home: remove a room the sync created.
     case removeRoom(roomId: String, name: String)
     /// Home Assistant: restore an entity's own name; `nil` is Home Assistant's default.
-    case renameEntity(entityId: String, name: String?)
+    case renameEntity(entityId: String, name: String?, written: String)
     /// Home Assistant: restore an entity's own area; `nil` means it follows its device.
-    case setEntityArea(entityId: String, areaId: String?)
+    case setEntityArea(entityId: String, areaId: String?, writtenAreaId: String)
     /// Home Assistant: remove an area the sync created.
     case removeArea(areaId: String, name: String)
     /// Apple Home: remove a zone the sync created.
@@ -25,7 +26,7 @@ enum UndoStep: Codable, Equatable {
     /// Home Assistant: remove a floor the sync created.
     case removeFloor(floorId: String, name: String)
     /// Home Assistant: put an area back on the floor it was on; `nil` for none.
-    case setAreaFloor(areaId: String, floorId: String?)
+    case setAreaFloor(areaId: String, floorId: String?, writtenFloorId: String)
     /// Apple Home: remove a scene the sync created.
     case removeScene(sceneId: String, name: String)
     /// Home Assistant: remove a scene the sync created, by its config ID.
@@ -57,6 +58,13 @@ struct SyncUndoRecord: Codable, Equatable, Identifiable {
     /// Local to this device on purpose: the steps name objects as this device last
     /// saw them, and undoing from a second device would race the first.
     static let defaultsKey = "lastSyncUndo"
+
+    /// After a day too much has usually happened since for an undo to mean much.
+    static let lifetime: TimeInterval = 24 * 60 * 60
+
+    func isExpired(now: Date = Date()) -> Bool {
+        now.timeIntervalSince(date) > Self.lifetime
+    }
 
     static func load(from defaults: UserDefaults) -> SyncUndoRecord? {
         guard let data = defaults.data(forKey: defaultsKey) else { return nil }
