@@ -7,6 +7,7 @@ struct HomeKitBridgeApp: App {
     @StateObject private var homeKitManager: HomeKitManager
     @StateObject private var logStore: LogStore
     @StateObject private var connections: ConnectionStore
+    @StateObject private var preferences: SyncPreferencesStore
 
     @StateObject private var syncEngine: SyncEngine
     @StateObject private var httpServer: HTTPServer
@@ -27,8 +28,10 @@ struct HomeKitBridgeApp: App {
         _homeKitManager = StateObject(wrappedValue: homeKit)
         _logStore = StateObject(wrappedValue: logs)
         _connections = StateObject(wrappedValue: connections)
+        let preferences = SyncPreferencesStore(cloud: UbiquitousConfigurationSyncStore())
+        _preferences = StateObject(wrappedValue: preferences)
 
-        let sync = SyncEngine(homeKitManager: homeKit, logStore: logs, connections: connections)
+        let sync = SyncEngine(homeKitManager: homeKit, logStore: logs, connections: connections, preferences: preferences)
         _syncEngine = StateObject(wrappedValue: sync)
         _httpServer = StateObject(wrappedValue: HTTPServer(homeKit: homeKit, logStore: logs))
         _scheduledActionManager = StateObject(
@@ -53,6 +56,7 @@ struct HomeKitBridgeApp: App {
             .environmentObject(homeKitManager)
             .environmentObject(logStore)
             .environmentObject(connections)
+            .environmentObject(preferences)
             .environmentObject(syncEngine)
             .environmentObject(httpServer)
             .environmentObject(scheduledActionManager)

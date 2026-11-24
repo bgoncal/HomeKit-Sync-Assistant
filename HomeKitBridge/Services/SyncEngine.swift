@@ -327,12 +327,20 @@ final class SyncEngine: ObservableObject {
     private let homeKitManager: HomeKitManager
     private let logStore: LogStore
     private let connections: ConnectionStore
+    private let preferences: SyncPreferencesStore
     private let defaults: UserDefaults
 
-    init(homeKitManager: HomeKitManager, logStore: LogStore, connections: ConnectionStore, defaults: UserDefaults = .standard) {
+    init(
+        homeKitManager: HomeKitManager,
+        logStore: LogStore,
+        connections: ConnectionStore,
+        preferences: SyncPreferencesStore,
+        defaults: UserDefaults = .standard
+    ) {
         self.homeKitManager = homeKitManager
         self.logStore = logStore
         self.connections = connections
+        self.preferences = preferences
         self.defaults = defaults
         self.lastUndo = SyncUndoRecord.load(from: defaults)
     }
@@ -625,7 +633,8 @@ final class SyncEngine: ObservableObject {
 
         for (index, area) in areas.enumerated() {
             progress = SyncProgress(title: "Comparing areas with rooms", detail: "Area \(index + 1) of \(areas.count)", completed: index, total: areas.count)
-            guard let name = area["name"] as? String else { continue }
+            guard let name = area["name"] as? String,
+                  !preferences.isRoomExcluded(homeId: context.home.id, roomName: name) else { continue }
             if context.home.room(named: name) == nil {
                 changes.append(SyncChange(
                     action: .createRoom,
@@ -646,7 +655,9 @@ final class SyncEngine: ObservableObject {
         let areas = try await context.client.fetchAreas()
         let areaNames = Set(areas.compactMap { ($0["name"] as? String)?.lowercased() })
 
-        let rooms = context.home.rooms.filter { !$0.isDefaultRoom }
+        let rooms = context.home.rooms.filter {
+            !$0.isDefaultRoom && !preferences.isRoomExcluded(homeId: context.home.id, roomName: $0.name)
+        }
         var changes: [SyncChange] = []
         for (index, room) in rooms.enumerated() {
             progress = SyncProgress(title: "Comparing rooms with areas", detail: "Room \(index + 1) of \(rooms.count)", completed: index, total: rooms.count)
@@ -672,11 +683,13 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id),
+            guard let serial = await entityId(for: accessory, homeId: context.home.id),
                   let targetAreaName = entityAreaMap[serial] else { continue }
 
             let currentRoomName = accessory.roomName
             if currentRoomName.caseInsensitiveCompare(targetAreaName) == .orderedSame { continue }
+            // Never move a device into a room the person asked every sync to leave alone.
+            if preferences.isRoomExcluded(homeId: context.home.id, roomName: targetAreaName) { continue }
 
             let existingRoom = context.home.room(named: targetAreaName)
             if existingRoom == nil, !plannedRoomCreates.contains(targetAreaName.lowercased()) {
@@ -711,7 +724,7 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id) else { continue }
+            guard let serial = await entityId(for: accessory, homeId: context.home.id) else { continue }
 
             let roomName = accessory.roomName
             guard roomName != RoomSummary.defaultRoomName, !roomName.isEmpty else { continue }
@@ -738,7 +751,7 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id),
+            guard let serial = await entityId(for: accessory, homeId: context.home.id),
                   let targetName = nameMap[serial] else { continue }
             if accessory.name == targetName { continue }
 
@@ -761,7 +774,7 @@ final class SyncEngine: ObservableObject {
 
         for (index, accessory) in context.home.accessories.enumerated() {
             progress = SyncProgress(title: "Matching devices", detail: "Device \(index + 1) of \(context.home.accessories.count): \(accessory.name)", completed: index, total: context.home.accessories.count)
-            guard let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id),
+            guard let serial = await entityId(for: accessory, homeId: context.home.id),
                   let haName = nameMap[serial] else { continue }
             if accessory.name == haName { continue }
 
@@ -776,6 +789,17 @@ final class SyncEngine: ObservableObject {
         }
 
         return result(.deviceNamesHomeToHA, context: context, changes: changes)
+    }
+
+    // MARK: - Matching
+
+    /// The Home Assistant entity a device stands for: the one picked by hand, else
+    /// the entity ID HomeKit Bridge writes into the serial number. `nil` when the
+    /// device or its room is excluded, or it is not bridged at all.
+    private func entityId(for accessory: AccessorySummary, homeId: String) async -> String? {
+        guard !preferences.isExcluded(accessory, homeId: homeId) else { return nil }
+        if let manual = preferences.manualEntityId(forAccessoryId: accessory.id) { return manual }
+        return await homeKitManager.refreshSerialNumber(accessoryId: accessory.id)
     }
 
     // MARK: - Home Assistant lookup

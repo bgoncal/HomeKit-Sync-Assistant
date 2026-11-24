@@ -45,6 +45,11 @@
 		B1000030 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = B5000001 /* SnapshotTesting */; };
 		EE5D70393FB81B03E3A38198 /* SyncPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */; };
 		E874B0E8B53230C8C5508EE7 /* SyncUndo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */; };
+		E05AE5525AD5C00011707431 /* SyncPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05AE5525AD5C00011707431 /* SyncPreferences.swift */; };
+		E65756FF3633790EB3AB023D /* SyncPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65756FF3633790EB3AB023D /* SyncPreferencesStore.swift */; };
+		E77FDCE56B4109D40736FF2A /* EntityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77FDCE56B4109D40736FF2A /* EntityPickerView.swift */; };
+		E4A155707456A0C461FF2DFD /* ExclusionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A155707456A0C461FF2DFD /* ExclusionsView.swift */; };
+		E160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -99,6 +104,11 @@
 		B2000010 /* HomeKitBridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HomeKitBridgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPlanTests.swift; sourceTree = "<group>"; };
 		F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncUndo.swift; sourceTree = "<group>"; };
+		F05AE5525AD5C00011707431 /* SyncPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPreferences.swift; sourceTree = "<group>"; };
+		F65756FF3633790EB3AB023D /* SyncPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPreferencesStore.swift; sourceTree = "<group>"; };
+		F77FDCE56B4109D40736FF2A /* EntityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityPickerView.swift; sourceTree = "<group>"; };
+		F4A155707456A0C461FF2DFD /* ExclusionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExclusionsView.swift; sourceTree = "<group>"; };
+		F160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPreferencesTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -156,6 +166,7 @@
 		A4000004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				F05AE5525AD5C00011707431 /* SyncPreferences.swift */,
 				F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */,
 				A2000017 /* HomeModels.swift */,
 				A2000019 /* HomeAssistantServer.swift */,
@@ -167,6 +178,7 @@
 		A4000005 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				F65756FF3633790EB3AB023D /* SyncPreferencesStore.swift */,
 				A2000003 /* HomeKitManager.swift */,
 				A2000020 /* ConnectionStore.swift */,
 				A2000026 /* TipService.swift */,
@@ -183,6 +195,8 @@
 		A4000006 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				F4A155707456A0C461FF2DFD /* ExclusionsView.swift */,
+				F77FDCE56B4109D40736FF2A /* EntityPickerView.swift */,
 				A2000011 /* OnboardingView.swift */,
 				A2000025 /* LocalAPIView.swift */,
 				A2000024 /* ServerDetailView.swift */,
@@ -202,6 +216,7 @@
 		B4000001 /* HomeKitBridgeTests */ = {
 			isa = PBXGroup;
 			children = (
+				F160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift */,
 				FE5D70393FB81B03E3A38198 /* SyncPlanTests.swift */,
 				B2000001 /* SnapshotSupport.swift */,
 				B2000002 /* Fixtures.swift */,
@@ -309,6 +324,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E4A155707456A0C461FF2DFD /* ExclusionsView.swift in Sources */,
+				E77FDCE56B4109D40736FF2A /* EntityPickerView.swift in Sources */,
+				E65756FF3633790EB3AB023D /* SyncPreferencesStore.swift in Sources */,
+				E05AE5525AD5C00011707431 /* SyncPreferences.swift in Sources */,
 				E874B0E8B53230C8C5508EE7 /* SyncUndo.swift in Sources */,
 				A1000001 /* HomeKitBridgeApp.swift in Sources */,
 				A1000024 /* TipService.swift in Sources */,
@@ -342,6 +361,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift in Sources */,
 				EE5D70393FB81B03E3A38198 /* SyncPlanTests.swift in Sources */,
 				B1000020 /* SnapshotSupport.swift in Sources */,
 				B1000021 /* Fixtures.swift in Sources */,

@@ -126,10 +126,74 @@ final class DevicesSnapshotTests: SnapshotTestCase {
                 DeviceDetailContent(
                     accessory: Fixtures.nativeLock,
                     matchState: .notBridged,
-                    serverName: Fixtures.houseServer.name
+                    serverName: Fixtures.houseServer.name,
+                    onChooseEntity: {}
                 )
             },
             named: "device-detail-not-bridged"
+        )
+    }
+
+    /// Picked by hand and left out of syncs: both say so, and both can be undone here.
+    func testDevicePairedByHandAndExcluded() {
+        assertScreen(
+            NavigationStack {
+                DeviceDetailContent(
+                    accessory: Fixtures.kitchenLight,
+                    matchState: .matched(Fixtures.homeAssistantMatch),
+                    serverName: Fixtures.houseServer.name,
+                    isExcluded: true,
+                    isPairedByHand: true,
+                    onChooseEntity: {}
+                )
+            },
+            named: "device-detail-by-hand-excluded"
+        )
+    }
+
+    func testDevicesWithExclusions() {
+        assertScreen(
+            NavigationStack {
+                HomeDevicesContent(
+                    home: Fixtures.home,
+                    search: .constant(""),
+                    excludedAccessoryIds: [Fixtures.kitchenLight.id],
+                    excludedRoomNames: [Fixtures.hallwaySensor.roomName.lowercased()],
+                    manualEntityIds: [Fixtures.nativeLock.id: "lock.front_door"]
+                )
+            },
+            named: "home-devices-excluded"
+        )
+    }
+
+    func testExclusions() {
+        assertScreen(
+            NavigationStack {
+                ExclusionsContent(items: [
+                    ExclusionItem(id: "room", kind: .room(homeId: Fixtures.home.id, roomName: "Garage"), title: "Garage", subtitle: Fixtures.home.name),
+                    ExclusionItem(id: "device", kind: .device(accessoryId: Fixtures.kitchenLight.id), title: Fixtures.kitchenLight.name, subtitle: "\(Fixtures.home.name) · \(Fixtures.kitchenLight.roomName)")
+                ])
+            },
+            named: "exclusions"
+        )
+    }
+
+    func testNothingExcluded() {
+        assertScreen(NavigationStack { ExclusionsContent(items: []) }, named: "exclusions-empty")
+    }
+
+    func testEntityPicker() {
+        assertScreen(
+            NavigationStack {
+                EntityPickerContent(
+                    serverName: Fixtures.houseServer.name,
+                    deviceName: Fixtures.nativeLock.name,
+                    areas: Fixtures.entityAreas,
+                    selectedEntityId: Fixtures.entityAreas.first?.entities.first?.entityId,
+                    search: .constant("")
+                )
+            },
+            named: "entity-picker"
         )
     }
 

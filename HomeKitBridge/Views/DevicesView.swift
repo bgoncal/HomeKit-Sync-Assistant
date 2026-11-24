@@ -5,6 +5,7 @@ struct HomeDevicesView: View {
     @EnvironmentObject private var homeKitManager: HomeKitManager
     @EnvironmentObject private var connections: ConnectionStore
     @EnvironmentObject private var syncEngine: SyncEngine
+    @EnvironmentObject private var preferences: SyncPreferencesStore
 
     let homeId: String
 
@@ -13,7 +14,15 @@ struct HomeDevicesView: View {
     private var home: HomeSummary? { homeKitManager.home(byId: homeId) }
 
     var body: some View {
-        HomeDevicesContent(home: home, search: $search)
+        HomeDevicesContent(
+            home: home,
+            search: $search,
+            excludedAccessoryIds: preferences.excludedAccessoryIds,
+            excludedRoomNames: preferences.excludedRoomNames(homeId: homeId),
+            manualEntityIds: manualEntityIds,
+            onSetAccessoryExcluded: { preferences.setAccessoryExcluded($1, accessoryId: $0) },
+            onSetRoomExcluded: { preferences.setRoomExcluded($1, homeId: homeId, roomName: $0) }
+        )
             // Serial numbers are what pair a device with Home Assistant, so read them
             // once the list is on screen rather than only inside a sync.
             .task(id: homeId) {
@@ -28,6 +37,7 @@ struct HomeDevicesView: View {
                     )
                     .environmentObject(homeKitManager)
                     .environmentObject(syncEngine)
+                    .environmentObject(preferences)
                 } else {
                     ContentUnavailableView(
                         "Device Not Found",
@@ -37,11 +47,28 @@ struct HomeDevicesView: View {
                 }
             }
     }
+
+    private var manualEntityIds: [String: String] {
+        var result: [String: String] = [:]
+        for accessory in home?.accessories ?? [] {
+            if let entityId = preferences.manualEntityId(forAccessoryId: accessory.id) {
+                result[accessory.id] = entityId
+            }
+        }
+        return result
+    }
 }
 
 struct HomeDevicesContent: View {
     let home: HomeSummary?
     @Binding var search: String
+    var excludedAccessoryIds: Set<String> = []
+    /// Lowercased room names every sync leaves alone.
+    var excludedRoomNames: Set<String> = []
+    /// Entities picked by hand, by accessory ID.
+    var manualEntityIds: [String: String] = [:]
+    var onSetAccessoryExcluded: (String, Bool) -> Void = { _, _ in }
+    var onSetRoomExcluded: (String, Bool) -> Void = { _, _ in }
 
     /// Devices by room, in the order Apple Home lists the rooms, with anything
     /// unassigned last.
@@ -80,14 +107,18 @@ struct HomeDevicesContent: View {
     var body: some View {
         List {
             ForEach(rooms, id: \.name) { room in
+                let isRoomExcluded = excludedRoomNames.contains(room.name.lowercased())
                 Section {
                     ForEach(room.accessories) { accessory in
                         NavigationLink(value: accessory.id) {
-                            row(for: accessory)
+                            row(for: accessory, isRoomExcluded: isRoomExcluded)
+                        }
+                        .contextMenu {
+                            menu(for: accessory, roomName: room.name, isRoomExcluded: isRoomExcluded)
                         }
                     }
                 } header: {
-                    Text(room.name)
+                    Text(isRoomExcluded ? "\(room.name) · Excluded from Syncs" : room.name)
                 }
             }
         }
@@ -115,8 +146,35 @@ struct HomeDevicesContent: View {
         }
     }
 
-    private func row(for accessory: AccessorySummary) -> some View {
-        HStack(spacing: 12) {
+    @ViewBuilder
+    private func menu(for accessory: AccessorySummary, roomName: String, isRoomExcluded: Bool) -> some View {
+        if excludedAccessoryIds.contains(accessory.id) {
+            Button("Include in Syncs", systemImage: "plus.circle") {
+                onSetAccessoryExcluded(accessory.id, false)
+            }
+        } else {
+            Button("Exclude from Syncs", systemImage: "minus.circle") {
+                onSetAccessoryExcluded(accessory.id, true)
+            }
+        }
+
+        if roomName != RoomSummary.defaultRoomName {
+            if isRoomExcluded {
+                Button("Include “\(roomName)” in Syncs", systemImage: "plus.square") {
+                    onSetRoomExcluded(roomName, false)
+                }
+            } else {
+                Button("Exclude “\(roomName)” from Syncs", systemImage: "minus.square") {
+                    onSetRoomExcluded(roomName, true)
+                }
+            }
+        }
+    }
+
+    private func row(for accessory: AccessorySummary, isRoomExcluded: Bool) -> some View {
+        let isExcluded = isRoomExcluded || excludedAccessoryIds.contains(accessory.id)
+        let entityId = manualEntityIds[accessory.id] ?? accessory.entityId
+        return HStack(spacing: 12) {
             Image(systemName: accessory.isReachable ? "sensor.fill" : "sensor")
                 .font(.title3)
                 .foregroundStyle(accessory.isReachable ? Color.accentColor : Color.secondary)
@@ -125,7 +183,7 @@ struct HomeDevicesContent: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(accessory.name)
-                if let entityId = accessory.entityId {
+                if let entityId {
                     Text(entityId)
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -141,7 +199,9 @@ struct HomeDevicesContent: View {
 
             Spacer(minLength: 8)
 
-            if accessory.entityId != nil {
+            if isExcluded {
+                BridgePill(title: "Excluded", systemImage: "minus.circle", tint: .secondary)
+            } else if entityId != nil {
                 BridgePill(title: "Bridged", systemImage: "link", tint: .green)
             }
         }
@@ -165,6 +225,7 @@ enum DeviceMatchState: Equatable {
 private struct DeviceDetailView: View {
     @EnvironmentObject private var homeKitManager: HomeKitManager
     @EnvironmentObject private var syncEngine: SyncEngine
+    @EnvironmentObject private var preferences: SyncPreferencesStore
 
     let accessory: AccessorySummary
     let homeId: String
@@ -173,15 +234,48 @@ private struct DeviceDetailView: View {
 
     @State private var matchState: DeviceMatchState = .loading
     @State private var resolvedAccessory: AccessorySummary?
+    @State private var isPickingEntity = false
+
+    private var current: AccessorySummary { resolvedAccessory ?? accessory }
+    private var manualEntityId: String? { preferences.manualEntityId(forAccessoryId: accessory.id) }
 
     var body: some View {
         DeviceDetailContent(
-            accessory: resolvedAccessory ?? accessory,
+            accessory: current,
             matchState: matchState,
-            serverName: server?.name
+            serverName: server?.name,
+            isExcluded: preferences.isAccessoryExcluded(accessory.id),
+            isRoomExcluded: preferences.isRoomExcluded(homeId: homeId, roomName: current.roomName),
+            isPairedByHand: manualEntityId != nil,
+            onSetExcluded: { preferences.setAccessoryExcluded($0, accessoryId: accessory.id) },
+            onChooseEntity: server == nil ? nil : { isPickingEntity = true },
+            onUseAutomaticPairing: {
+                preferences.setManualEntityId(nil, forAccessoryId: accessory.id)
+                Task { await loadMatch() }
+            }
         )
         .task(id: accessory.id) {
             await loadMatch()
+        }
+        .sheet(isPresented: $isPickingEntity) {
+            if let server {
+                NavigationStack {
+                    EntityPickerView(
+                        serverId: server.id,
+                        deviceName: current.name,
+                        selectedEntityId: manualEntityId ?? current.entityId,
+                        onPick: { entityId in
+                            preferences.setManualEntityId(entityId, forAccessoryId: accessory.id)
+                            Task { await loadMatch() }
+                        }
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { isPickingEntity = false }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -191,7 +285,8 @@ private struct DeviceDetailView: View {
         let serial = await homeKitManager.refreshSerialNumber(accessoryId: accessory.id)
         resolvedAccessory = homeKitManager.accessory(byId: accessory.id) ?? accessory
 
-        guard let serial, !serial.isEmpty else {
+        // A pairing made by hand wins over whatever the serial number says.
+        guard let entityId = manualEntityId ?? serial, !entityId.isEmpty else {
             matchState = .notBridged
             return
         }
@@ -202,7 +297,7 @@ private struct DeviceDetailView: View {
         }
 
         do {
-            if let match = try await syncEngine.homeAssistantMatch(forEntityId: serial, homeId: homeId, serverId: server.id) {
+            if let match = try await syncEngine.homeAssistantMatch(forEntityId: entityId, homeId: homeId, serverId: server.id) {
                 matchState = .matched(match)
             } else {
                 matchState = .noEntity
@@ -218,6 +313,14 @@ struct DeviceDetailContent: View {
     let matchState: DeviceMatchState
     /// The Home Assistant paired with this device's home, when there is one.
     var serverName: String?
+    var isExcluded: Bool = false
+    /// The whole room is left out, which overrides the device's own switch.
+    var isRoomExcluded: Bool = false
+    var isPairedByHand: Bool = false
+    var onSetExcluded: (Bool) -> Void = { _ in }
+    /// `nil` when there is no server to pick from.
+    var onChooseEntity: (() -> Void)?
+    var onUseAutomaticPairing: () -> Void = {}
 
     var body: some View {
         List {
@@ -233,6 +336,7 @@ struct DeviceDetailContent: View {
             }
 
             homeAssistantSection
+            syncingSection
 
             Section {
                 LabeledContent("Room", value: accessory.roomName)
@@ -260,6 +364,33 @@ struct DeviceDetailContent: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(accessory.name)
+    }
+
+    // MARK: Syncing
+
+    private var syncingSection: some View {
+        Section {
+            Toggle("Include in Syncs", isOn: Binding(
+                get: { !isExcluded && !isRoomExcluded },
+                set: { onSetExcluded(!$0) }
+            ))
+            .disabled(isRoomExcluded)
+        } footer: {
+            if isRoomExcluded {
+                Text("Every device in “\(accessory.roomName)” is left out. Include the room again from the device list.")
+            } else if isExcluded {
+                Text("Every sync leaves this device alone: its name and room stay as they are on both sides.")
+            } else {
+                Text("Turn off to keep this device's name and room exactly as they are, whatever a sync would change.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var chooseEntityButton: some View {
+        if let onChooseEntity {
+            Button(isPairedByHand ? "Choose Another Entity…" : "Choose Entity…", action: onChooseEntity)
+        }
     }
 
     @ViewBuilder
@@ -290,13 +421,24 @@ struct DeviceDetailContent: View {
                     .truncationMode(.middle)
                 LabeledContent("Name", value: match.friendlyName ?? "Unnamed")
                 LabeledContent("Area", value: match.areaName ?? "None")
+                if isPairedByHand {
+                    LabeledContent("Paired", value: "By Hand")
+                }
                 NavigationLink {
                     HomeAssistantDataContent(match: match)
                 } label: {
                     Text("Raw Data")
                 }
+                chooseEntityButton
+                if isPairedByHand {
+                    Button("Use Automatic Pairing", action: onUseAutomaticPairing)
+                }
             } header: {
                 Text(match.serverName)
+            } footer: {
+                if isPairedByHand {
+                    Text("Paired by hand. Automatic pairing reads the entity ID from the serial number instead.")
+                }
             }
 
         case .notBridged:
@@ -307,10 +449,11 @@ struct DeviceDetailContent: View {
                     systemImage: "link.badge.plus",
                     tint: .orange
                 )
+                chooseEntityButton
             } header: {
                 Text(homeAssistantSectionTitle)
             } footer: {
-                Text("Expose it through Home Assistant's HomeKit Bridge integration to sync it.")
+                Text("Expose it through Home Assistant's HomeKit Bridge integration, or choose its entity by hand.")
             }
 
         case .noEntity:
@@ -321,6 +464,7 @@ struct DeviceDetailContent: View {
                     systemImage: "questionmark.circle.fill",
                     tint: .orange
                 )
+                chooseEntityButton
             } header: {
                 Text(homeAssistantSectionTitle)
             }

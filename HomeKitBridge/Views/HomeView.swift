@@ -6,6 +6,7 @@ struct HomeView: View {
     @EnvironmentObject private var connections: ConnectionStore
     @EnvironmentObject private var server: HTTPServer
     @EnvironmentObject private var scheduledActionManager: ScheduledActionManager
+    @EnvironmentObject private var preferences: SyncPreferencesStore
 
     @AppStorage("onboardingComplete") private var onboardingComplete = false
 
@@ -37,6 +38,7 @@ struct HomeView: View {
             isServerRunning: server.isRunning,
             serverPort: server.port,
             scheduleCount: scheduledActionManager.schedules.count,
+            exclusionCount: preferences.exclusionCount,
             tipProduct: tipProduct,
             tipState: tipState,
             appVersion: Bundle.main.appVersionString,
@@ -66,6 +68,8 @@ struct HomeView: View {
                 LocalAPIView()
             case .scheduledActions:
                 ActionsView()
+            case .exclusions:
+                ExclusionsView()
             }
         }
     }
@@ -92,6 +96,7 @@ enum HomeRoute: Hashable {
     case newServer
     case localAPI
     case scheduledActions
+    case exclusions
 }
 
 enum TipState: Equatable {
@@ -109,6 +114,7 @@ struct HomeContent: View {
     let serverPort: Int
     var scheduleCount: Int = 0
     var supportsScheduledActions: Bool = ScheduledActionManager.isSupported
+    var exclusionCount: Int = 0
     var tipProduct: TipProduct?
     var tipState: TipState = .idle
     var appVersion: String = ""
@@ -255,6 +261,18 @@ struct HomeContent: View {
                 }
             }
 
+            NavigationLink(value: HomeRoute.exclusions) {
+                LabeledContent {
+                    Text(exclusionCount == 0 ? "None" : exclusionCount.formatted())
+                } label: {
+                    BridgeNavigationRow(
+                        title: "Excluded from Syncs",
+                        systemImage: "minus.circle",
+                        tint: .gray
+                    )
+                }
+            }
+
             if supportsScheduledActions {
                 NavigationLink(value: HomeRoute.scheduledActions) {
                     LabeledContent {
@@ -272,8 +290,8 @@ struct HomeContent: View {
             Text("Tools")
         } footer: {
             Text(supportsScheduledActions
-                 ? "The local API drives Apple Home from your own scripts. Scheduled syncs repeat daily while this Mac is awake and the app is open."
-                 : "The local API drives Apple Home from your own scripts and automations.")
+                 ? "The local API drives Apple Home from your own scripts. Excluded devices and rooms are never changed by a sync. Scheduled syncs repeat daily while this Mac is awake and the app is open."
+                 : "The local API drives Apple Home from your own scripts. Excluded devices and rooms are never changed by a sync.")
         }
     }
 }
