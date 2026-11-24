@@ -306,7 +306,7 @@ final class HAWebSocketClient: ObservableObject {
         _ = try await sendCommand([
             "type": "config/area_registry/update",
             "area_id": areaId,
-            "floor_id": floorId ?? NSNull()
+            "floor_id": floorId.map { $0 as Any } ?? NSNull()
         ])
     }
 

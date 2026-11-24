@@ -52,6 +52,7 @@
 		E160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift */; };
 		E002733C80DB66394E6D20F2 /* PairDifferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F002733C80DB66394E6D20F2 /* PairDifferences.swift */; };
 		E0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */; };
+		E60606E141CA60E2D2B10BD7 /* SyncIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60606E141CA60E2D2B10BD7 /* SyncIntents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +114,7 @@
 		F160545FDA27C03058EE4C3D /* SyncPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPreferencesTests.swift; sourceTree = "<group>"; };
 		F002733C80DB66394E6D20F2 /* PairDifferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairDifferences.swift; sourceTree = "<group>"; };
 		F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DifferencesView.swift; sourceTree = "<group>"; };
+		F60606E141CA60E2D2B10BD7 /* SyncIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncIntents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -183,6 +185,7 @@
 		A4000005 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				F60606E141CA60E2D2B10BD7 /* SyncIntents.swift */,
 				F65756FF3633790EB3AB023D /* SyncPreferencesStore.swift */,
 				A2000003 /* HomeKitManager.swift */,
 				A2000020 /* ConnectionStore.swift */,
@@ -330,6 +333,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E60606E141CA60E2D2B10BD7 /* SyncIntents.swift in Sources */,
 				E0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift in Sources */,
 				E002733C80DB66394E6D20F2 /* PairDifferences.swift in Sources */,
 				E4A155707456A0C461FF2DFD /* ExclusionsView.swift in Sources */,

@@ -568,9 +568,9 @@ final class SyncEngine: ObservableObject {
         case .removeRoom(let roomId, _):
             try await homeKitManager.removeRoom(id: roomId)
         case .renameEntity(let entityId, let name):
-            _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": name ?? NSNull()])
+            _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": name.map { $0 as Any } ?? NSNull()])
         case .setEntityArea(let entityId, let areaId):
-            _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": areaId ?? NSNull()])
+            _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": areaId.map { $0 as Any } ?? NSNull()])
         case .removeArea(let areaId, _):
             try await context.client.deleteArea(areaId: areaId)
         case .removeZone(let zoneId, _):

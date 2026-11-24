@@ -6,10 +6,9 @@ import Foundation
 // why they are allowed on iPhone and iPad where scheduled syncs are not.
 
 extension SyncOperation: AppEnum {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation { "Sync" }
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Sync"
 
-    static var caseDisplayRepresentations: [SyncOperation: DisplayRepresentation] {
-        [
+    static let caseDisplayRepresentations: [SyncOperation: DisplayRepresentation] = [
             .roomsHAToHome: "Rooms, from Home Assistant to Apple Home",
             .roomsHomeToHA: "Rooms, from Apple Home to Home Assistant",
             .devicePlacementHAToHome: "Device placement, from Home Assistant to Apple Home",
@@ -20,8 +19,7 @@ extension SyncOperation: AppEnum {
             .zonesHomeToHA: "Floors and zones, from Apple Home to Home Assistant",
             .scenesHAToHome: "Scenes, from Home Assistant to Apple Home",
             .scenesHomeToHA: "Scenes, from Apple Home to Home Assistant"
-        ]
-    }
+    ]
 }
 
 /// The pair a shortcut syncs: the home Apple Home has selected, and the server last
