@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 
 struct ScheduledAction: Identifiable, Codable, Equatable {
     var id: UUID
@@ -50,6 +51,29 @@ struct ScheduledAction: Identifiable, Codable, Equatable {
     }
 }
 
+/// Tells the person what a scheduled sync did while they were not looking.
+protocol ScheduledSyncNotifier: AnyObject {
+    func requestPermission()
+    func notify(title: String, body: String)
+}
+
+/// A banner in Notification Center. Only failures and syncs that changed something
+/// are announced — a sync that found nothing to do stays quiet.
+final class UserNotificationScheduledSyncNotifier: ScheduledSyncNotifier {
+    func requestPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    func notify(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+}
+
 @MainActor
 final class ScheduledActionManager: ObservableObject {
     /// Scheduled syncs are a Mac feature. iPhone and iPad suspend the app within
@@ -78,13 +102,21 @@ final class ScheduledActionManager: ObservableObject {
     private let logStore: LogStore
     private let homeKitManager: HomeKitManager
     private let connections: ConnectionStore
+    private let notifier: ScheduledSyncNotifier?
     private var timer: Timer?
 
-    init(syncEngine: SyncEngine, logStore: LogStore, homeKitManager: HomeKitManager, connections: ConnectionStore) {
+    init(
+        syncEngine: SyncEngine,
+        logStore: LogStore,
+        homeKitManager: HomeKitManager,
+        connections: ConnectionStore,
+        notifier: ScheduledSyncNotifier? = ScheduledActionManager.isSupported ? UserNotificationScheduledSyncNotifier() : nil
+    ) {
         self.syncEngine = syncEngine
         self.logStore = logStore
         self.homeKitManager = homeKitManager
         self.connections = connections
+        self.notifier = notifier
         loadSchedules()
     }
 
@@ -93,6 +125,8 @@ final class ScheduledActionManager: ObservableObject {
     }
 
     func addSchedule() {
+        // Asked here, when the reason is obvious, rather than at launch.
+        notifier?.requestPermission()
         schedules.append(ScheduledAction())
         saveSchedules()
         refreshSchedule()
@@ -162,7 +196,7 @@ final class ScheduledActionManager: ObservableObject {
         }
 
         guard let operation = currentSchedule.operation else {
-            logStore.add(category: .error, message: "Scheduled action failed", details: "The selected action is no longer available.")
+            reportFailure("The selected action is no longer available.")
             markSchedule(schedule.id, lastRunDay: todayKey)
             return
         }
@@ -172,18 +206,14 @@ final class ScheduledActionManager: ObservableObject {
             : currentSchedule.homeId
 
         guard let home = homeKitManager.home(byId: homeId) else {
-            logStore.add(category: .error, message: "Scheduled action failed", details: "Its Apple Home is no longer available.")
+            reportFailure("Its Apple Home is no longer available.")
             markSchedule(schedule.id, lastRunDay: todayKey)
             return
         }
 
         let resolvedServerId = currentSchedule.serverId ?? connections.suggestedServer(forHomeId: home.id)?.id
         guard let serverId = resolvedServerId, let server = connections.server(id: serverId) else {
-            logStore.add(
-                category: .error,
-                message: "Scheduled action failed",
-                details: "It has no Home Assistant to sync “\(home.name)” with."
-            )
+            reportFailure("It has no Home Assistant to sync “\(home.name)” with.")
             markSchedule(schedule.id, lastRunDay: todayKey)
             return
         }
@@ -201,10 +231,21 @@ final class ScheduledActionManager: ObservableObject {
                 logStore.add(category: .sync, message: "Scheduled action finished", details: result.summary)
             } else {
                 try await syncEngine.execute(result)
+                let count = result.changes.count
+                let destination = operation.direction.destination == .appleHome ? home.name : server.name
+                notifier?.notify(
+                    title: "Scheduled Sync Made \(count) Change\(count == 1 ? "" : "s")",
+                    body: "\(operation.displayTitle) in \(destination). You can undo it from the Sync screen."
+                )
             }
         } catch {
-            logStore.add(category: .error, message: "Scheduled action failed", details: error.localizedDescription)
+            reportFailure(error.localizedDescription)
         }
+    }
+
+    private func reportFailure(_ reason: String) {
+        logStore.add(category: .error, message: "Scheduled action failed", details: reason)
+        notifier?.notify(title: "Scheduled Sync Failed", body: reason)
     }
 
     private func markSchedule(_ id: UUID, lastRunDay: String) {

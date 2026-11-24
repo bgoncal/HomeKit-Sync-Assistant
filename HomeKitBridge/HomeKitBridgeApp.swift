@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 @main
@@ -33,6 +34,11 @@ struct HomeKitBridgeApp: App {
 
         let sync = SyncEngine(homeKitManager: homeKit, logStore: logs, connections: connections, preferences: preferences)
         _syncEngine = StateObject(wrappedValue: sync)
+
+        // What the Shortcuts actions use, so they act on the same services as the screens.
+        AppDependencyManager.shared.add(dependency: sync)
+        AppDependencyManager.shared.add(dependency: homeKit)
+        AppDependencyManager.shared.add(dependency: connections)
         _httpServer = StateObject(wrappedValue: HTTPServer(homeKit: homeKit, logStore: logs))
         _scheduledActionManager = StateObject(
             wrappedValue: ScheduledActionManager(
