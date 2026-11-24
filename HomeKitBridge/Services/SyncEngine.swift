@@ -25,7 +25,7 @@ enum SyncPlatform: String, Codable {
 
 /// Which way information flows for a sync operation. Every screen that mentions a
 /// sync shows this, so it is always obvious what gets read and what gets changed.
-enum SyncDirection: String, Hashable, Codable {
+enum SyncDirection: String, CaseIterable, Hashable, Codable {
     case homeAssistantToAppleHome
     case appleHomeToHomeAssistant
 

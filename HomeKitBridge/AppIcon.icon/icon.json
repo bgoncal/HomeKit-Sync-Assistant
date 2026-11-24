@@ -1,52 +1,84 @@
 {
-  "fill" : {
-    "automatic-gradient" : "srgb:1.00000,1.00000,1.00000,1.00000"
-  },
-  "groups" : [
-    {
-      "layers" : [
-        {
-          "fill" : {
-            "automatic-gradient" : "display-p3:0.30961,0.99409,1.00000,1.00000"
-          },
-          "image-name" : "Initializing@2x.png",
-          "name" : "Initializing@2x",
-          "position" : {
-            "scale" : 2.5,
-            "translation-in-points" : [
-              -57,
-              1.740000000000009
-            ]
-          }
-        },
-        {
-          "glass" : true,
-          "image-name" : "house-angle 2.png",
-          "name" : "house-angle 2",
-          "opacity" : 0.63,
-          "position" : {
-            "scale" : 2.31,
-            "translation-in-points" : [
-              50,
-              -27
-            ]
-          }
-        }
-      ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
+  "fill": {
+    "linear-gradient": [
+      "display-p3:0.17000,0.20000,0.33000,1.00000",
+      "display-p3:0.04000,0.05500,0.12000,1.00000"
+    ],
+    "orientation": {
+      "start": {
+        "x": 0.5,
+        "y": 0.0
       },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+      "stop": {
+        "x": 0.5,
+        "y": 1.0
       }
     }
+  },
+  "groups": [
+    {
+      "name": "Front",
+      "lighting": "individual",
+      "specular": true,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.6
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.2
+      },
+      "layers": [
+        {
+          "name": "Front",
+          "image-name": "Front.svg",
+          "glass": true,
+          "fill": {
+            "automatic-gradient": "display-p3:0.97000,0.97000,1.00000,1.00000"
+          },
+          "fill-specializations": [
+            {
+              "appearance": "tinted",
+              "value": "automatic"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Back",
+      "lighting": "individual",
+      "specular": true,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.35
+      },
+      "layers": [
+        {
+          "name": "Back",
+          "image-name": "Back.svg",
+          "glass": true,
+          "fill": {
+            "automatic-gradient": "display-p3:0.91000,0.74000,0.44000,1.00000"
+          },
+          "fill-specializations": [
+            {
+              "appearance": "tinted",
+              "value": "automatic"
+            }
+          ]
+        }
+      ]
+    }
   ],
-  "supported-platforms" : {
-    "circles" : [
+  "supported-platforms": {
+    "circles": [
       "watchOS"
     ],
-    "squares" : "shared"
+    "squares": "shared"
   }
 }

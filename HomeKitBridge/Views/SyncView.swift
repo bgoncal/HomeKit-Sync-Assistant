@@ -108,6 +108,7 @@ struct SyncContent: View {
     var body: some View {
         List {
             directionSection
+            pairSection
             subjectSection
             previewButtonSection
 
@@ -147,61 +148,64 @@ struct SyncContent: View {
 
     private var directionSection: some View {
         Section {
-            Picker("Read from", selection: $direction) {
-                Text(SyncPlatform.homeAssistant.name).tag(SyncDirection.homeAssistantToAppleHome)
-                Text(SyncPlatform.appleHome.name).tag(SyncDirection.appleHomeToHomeAssistant)
+            Picker("Direction", selection: $direction) {
+                ForEach(SyncDirection.allCases, id: \.self) { direction in
+                    BridgeDirectionBadge(direction: direction)
+                        .tag(direction)
+                }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.inline)
             .labelsHidden()
             .disabled(isWorking)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        } header: {
+            Text("1 · Which Way")
+        } footer: {
+            Text("The first side is only read. The second is the one that changes.")
+        }
+    }
 
-            Button {
-                direction = direction == .homeAssistantToAppleHome ? .appleHomeToHomeAssistant : .homeAssistantToAppleHome
-            } label: {
-                LabeledContent {
-                    HStack(spacing: 10) {
-                        BridgeDirectionBadge(direction: direction)
-                        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.tint)
-                    }
-                } label: {
-                    Text("Direction")
-                        .foregroundStyle(.primary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isWorking)
-            .accessibilityLabel("Direction: from \(direction.source.name) to \(direction.destination.name)")
-            .accessibilityHint("Double tap to sync the other way")
+    // MARK: 2 — between which two
 
-            Picker(SyncPlatform.appleHome.name, selection: $homeId) {
+    private var pairSection: some View {
+        Section {
+            Picker(selection: $homeId) {
                 if homes.isEmpty {
                     Text("None").tag("")
                 }
                 ForEach(homes) { home in
                     Text(home.name).tag(home.id)
                 }
+            } label: {
+                platformLabel(.appleHome)
             }
             .disabled(isWorking || homes.isEmpty)
 
-            Picker(SyncPlatform.homeAssistant.name, selection: $serverId) {
+            Picker(selection: $serverId) {
                 if servers.isEmpty {
                     Text("None").tag(UUID?.none)
                 }
                 ForEach(servers) { server in
                     Text(server.name).tag(UUID?.some(server.id))
                 }
+            } label: {
+                platformLabel(.homeAssistant)
             }
             .disabled(isWorking || servers.isEmpty)
         } header: {
-            Text("1 · Which Way")
+            Text("2 · Between")
         } footer: {
             Text(isReady
                  ? "Only \(destinationName) is changed. \(sourceName) is read and left alone."
                  : "Pick an Apple Home and a Home Assistant to sync between.")
+        }
+    }
+
+    private func platformLabel(_ platform: SyncPlatform) -> some View {
+        Label {
+            Text(platform.name)
+        } icon: {
+            Image(systemName: platform.symbolName)
+                .foregroundStyle(platform.tint)
         }
     }
 
@@ -219,14 +223,15 @@ struct SyncContent: View {
         Section {
             Picker("What", selection: $subject) {
                 ForEach(SyncSubject.allCases) { subject in
-                    Text(subject.title).tag(subject)
+                    Label(subject.title, systemImage: subject.symbolName)
+                        .tag(subject)
                 }
             }
             .pickerStyle(.inline)
             .labelsHidden()
             .disabled(isWorking)
         } header: {
-            Text("2 · What to Sync")
+            Text("3 · What to Sync")
         } footer: {
             Text(operation.description)
         }
@@ -247,7 +252,7 @@ struct SyncContent: View {
             }
             .disabled(isWorking || !isReady)
         } header: {
-            Text("3 · Preview")
+            Text("4 · Preview")
         } footer: {
             Text("Nothing is written yet. The preview lists every change first.")
         }
@@ -292,7 +297,7 @@ struct SyncContent: View {
                 }
                 .disabled(isWorking)
             } header: {
-                Text("4 · Apply")
+                Text("5 · Apply")
             } footer: {
                 Text("This writes to \(destinationName). It cannot be undone from here.")
             }

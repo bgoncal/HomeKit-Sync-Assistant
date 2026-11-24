@@ -87,8 +87,8 @@ The servers and their pairings follow the person to their other devices:
 
 ## The app icon
 
-`HomeKitBridge/AppIcon.icon` (Icon Composer) is the single source, shared with the
-HA-Home app. There is no `AppIcon.appiconset`: actool rasterises every legacy size
+`HomeKitBridge/AppIcon.icon` (Icon Composer) is the single source: two vector houses
+(`Front.svg` in white glass, `Back.svg` in champagne gold) on a midnight-blue gradient. There is no `AppIcon.appiconset`: actool rasterises every legacy size
 from the `.icon`, and a second icon set only competes with it. The target's
 **Resources build phase** is what puts it in the bundle — without it the archive has
 no icon and App Store Connect refuses the build, which is what `AppResourcesTests`
@@ -99,16 +99,21 @@ guards.
 Three tabs: **Home**, **Sync**, **Activity** (the Mac shows Home, Sync and Scheduled
 Syncs in a sidebar). Everything else is pushed from Home:
 
-- Two boxes at the top open the Apple Home list and the Home Assistant list. A home
-  leads to its devices grouped by room; a server leads to its entities grouped by area.
-  Both screens are searchable by name or entity ID.
-- Local API sits below them with a running badge, and its screen holds the switch, the
-  port, what the API is for, and every endpoint.
-- The bottom holds the tip jar (`com.hasync.tip`, a consumable that unlocks nothing),
-  the repository and X links, and the way back into the setup guide.
+- Until both sides exist, Home opens with a **Get Started** checklist (allow Apple Home,
+  add a Home Assistant server). It disappears once both are done.
+- **Your Homes** holds two Settings-style rows (`BridgeNavigationRow`: icon tile, name,
+  one summary line) for the Apple Home list and the Home Assistant list. A home leads to
+  its devices grouped by room; a server leads to its entities grouped by area. Both
+  screens are searchable by name or entity ID.
+- **Tools** holds Local API (On/Off, its screen has the switch, the port and every
+  endpoint) and, on the Mac, Scheduled Syncs.
+- The gear in the toolbar opens **Settings** as a sheet (`SettingsContent`): the setup
+  guide, the tip jar (`com.hasync.tip`, a consumable that unlocks nothing), the version,
+  and the repository and X links.
 
-Sync is deliberately a numbered sequence — direction, what, preview, apply — and apply
-asks for confirmation before writing.
+Sync is deliberately a numbered sequence — which way, between which two, what, preview,
+apply — and apply asks for confirmation before writing. The direction is one inline
+picker whose two rows are `BridgeDirectionBadge`s, so the choice reads as the arrow it is.
 
 ## Platform differences
 

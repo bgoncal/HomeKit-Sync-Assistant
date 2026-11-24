@@ -66,6 +66,81 @@ struct BridgeFeatureRow: View {
     }
 }
 
+/// A white glyph on a rounded square of colour — the icon Settings puts at the
+/// start of its rows. Used for the few top-level destinations, not for every row.
+struct BridgeIconTile: View {
+    let systemImage: String
+    let tint: Color
+
+    @ScaledMetric(relativeTo: .body) private var side: CGFloat = 30
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: side * 0.52, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: side, height: side)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: side * 0.24, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// A Settings-style row: icon tile, title, and an optional line under it. The
+/// caller wraps it in a `NavigationLink` or a `Button`.
+struct BridgeNavigationRow: View {
+    let title: String
+    var subtitle: String?
+    let systemImage: String
+    let tint: Color
+    /// Adds a warning glyph and word to the subtitle, for a side that needs a look.
+    var warning: Bool = false
+
+    var body: some View {
+        HStack(spacing: 14) {
+            BridgeIconTile(systemImage: systemImage, tint: tint)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .foregroundStyle(.primary)
+                if let subtitle {
+                    HStack(spacing: 4) {
+                        if warning {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .imageScale(.small)
+                                .accessibilityLabel("Needs attention")
+                        }
+                        Text(subtitle)
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.subheadline)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One step of the Get Started checklist: a numbered circle until it is done, a
+/// green checkmark after.
+struct BridgeChecklistRow: View {
+    let step: Int
+    let title: String
+    let isDone: Bool
+
+    var body: some View {
+        Label {
+            Text(title)
+                .foregroundStyle(isDone ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
+        } icon: {
+            Image(systemName: isDone ? "checkmark.circle.fill" : "\(step).circle")
+                .foregroundStyle(isDone ? AnyShapeStyle(.green) : AnyShapeStyle(.tint))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isDone ? "\(title), done" : title)
+    }
+}
+
 // MARK: - Pills
 
 /// A word and its glyph in a tinted pill, for a status at a glance.

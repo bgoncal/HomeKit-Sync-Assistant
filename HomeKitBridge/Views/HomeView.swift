@@ -39,6 +39,7 @@ struct HomeView: View {
             scheduleCount: scheduledActionManager.schedules.count,
             tipProduct: tipProduct,
             tipState: tipState,
+            appVersion: Bundle.main.appVersionString,
             onSelect: { path.append($0) },
             onRequestHomeKitAccess: { homeKitManager.requestAccess() },
             onTip: tip,
@@ -110,148 +111,218 @@ struct HomeContent: View {
     var supportsScheduledActions: Bool = ScheduledActionManager.isSupported
     var tipProduct: TipProduct?
     var tipState: TipState = .idle
+    var appVersion: String = ""
     var onSelect: (HomeRoute) -> Void = { _ in }
     var onRequestHomeKitAccess: () -> Void = {}
+    var onTip: () -> Void = {}
+    var onShowSetupAgain: () -> Void = {}
+
+    @State private var isShowingSettings = false
+
+    private var needsSetup: Bool { !isHomeKitAuthorized || connections.isEmpty }
+
+    var body: some View {
+        List {
+            if needsSetup {
+                gettingStartedSection
+            }
+            sidesSection
+            toolsSection
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Home")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    isShowingSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .sheet(isPresented: $isShowingSettings) {
+                    NavigationStack {
+                        SettingsContent(
+                            tipProduct: tipProduct,
+                            tipState: tipState,
+                            appVersion: appVersion,
+                            onTip: onTip,
+                            onShowSetupAgain: {
+                                isShowingSettings = false
+                                onShowSetupAgain()
+                            }
+                        )
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { isShowingSettings = false }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Getting started
+
+    /// Only shown until both sides are there, so a first launch says what to do next
+    /// instead of showing two empty summaries.
+    private var gettingStartedSection: some View {
+        Section {
+            if isHomeKitAuthorized {
+                BridgeChecklistRow(step: 1, title: "Apple Home Connected", isDone: true)
+            } else {
+                Button(action: onRequestHomeKitAccess) {
+                    BridgeChecklistRow(step: 1, title: "Allow Access to Apple Home", isDone: false)
+                }
+            }
+
+            if connections.isEmpty {
+                Button { onSelect(.newServer) } label: {
+                    BridgeChecklistRow(step: 2, title: "Add a Home Assistant Server", isDone: false)
+                }
+            } else {
+                BridgeChecklistRow(step: 2, title: "Home Assistant Added", isDone: true)
+            }
+        } header: {
+            Text("Get Started")
+        } footer: {
+            Text("Syncing needs both sides: access to your Apple Home, and the address and token of a Home Assistant server.")
+        }
+    }
+
+    // MARK: The two sides
+
+    private var sidesSection: some View {
+        Section {
+            NavigationLink(value: HomeRoute.appleHomes) {
+                BridgeNavigationRow(
+                    title: SyncPlatform.appleHome.name,
+                    subtitle: appleHomeSummary,
+                    systemImage: SyncPlatform.appleHome.symbolName,
+                    tint: SyncPlatform.appleHome.tint
+                )
+            }
+            NavigationLink(value: HomeRoute.homeAssistants) {
+                BridgeNavigationRow(
+                    title: SyncPlatform.homeAssistant.name,
+                    subtitle: homeAssistantSummary,
+                    systemImage: SyncPlatform.homeAssistant.symbolName,
+                    tint: SyncPlatform.homeAssistant.tint,
+                    warning: hasDisconnectedServer
+                )
+            }
+        } header: {
+            Text("Your Homes")
+        } footer: {
+            Text("Open either side to see what it holds. You choose which pair to sync on the Sync tab.")
+        }
+    }
+
+    private var appleHomeSummary: String {
+        guard isHomeKitAuthorized else { return "No access yet" }
+        guard !homes.isEmpty else { return "No homes yet — open Apple Home once" }
+        let devices = homes.reduce(0) { $0 + $1.accessories.count }
+        return "\(homes.count) home\(homes.count == 1 ? "" : "s") · \(devices) device\(devices == 1 ? "" : "s")"
+    }
+
+    private var homeAssistantSummary: String {
+        guard !connections.isEmpty else { return "No servers yet" }
+        let connected = connections.filter(\.state.isConnected).count
+        let servers = "\(connections.count) server\(connections.count == 1 ? "" : "s")"
+        if connected == connections.count {
+            return connections.count == 1 ? "\(servers) · connected" : "\(servers) · all connected"
+        }
+        return "\(servers) · \(connected) connected"
+    }
+
+    private var hasDisconnectedServer: Bool {
+        connections.contains { !$0.state.isConnected }
+    }
+
+    // MARK: Tools
+
+    private var toolsSection: some View {
+        Section {
+            NavigationLink(value: HomeRoute.localAPI) {
+                LabeledContent {
+                    Text(isServerRunning ? "On" : "Off")
+                } label: {
+                    BridgeNavigationRow(
+                        title: "Local API",
+                        subtitle: isServerRunning ? "Port \(String(serverPort))" : nil,
+                        systemImage: "point.3.connected.trianglepath.dotted",
+                        tint: .indigo
+                    )
+                }
+            }
+
+            if supportsScheduledActions {
+                NavigationLink(value: HomeRoute.scheduledActions) {
+                    LabeledContent {
+                        Text(scheduleCount == 0 ? "None" : scheduleCount.formatted())
+                    } label: {
+                        BridgeNavigationRow(
+                            title: "Scheduled Syncs",
+                            systemImage: "clock.arrow.circlepath",
+                            tint: .teal
+                        )
+                    }
+                }
+            }
+        } header: {
+            Text("Tools")
+        } footer: {
+            Text(supportsScheduledActions
+                 ? "The local API drives Apple Home from your own scripts. Scheduled syncs repeat daily while this Mac is awake and the app is open."
+                 : "The local API drives Apple Home from your own scripts and automations.")
+        }
+    }
+}
+
+// MARK: - Settings
+
+/// The setup guide, the tip jar and the small print, behind the gear on Home.
+struct SettingsContent: View {
+    var tipProduct: TipProduct?
+    var tipState: TipState = .idle
+    var appVersion: String = ""
     var onTip: () -> Void = {}
     var onShowSetupAgain: () -> Void = {}
 
     var body: some View {
         List {
             Section {
-                HStack(alignment: .top, spacing: 12) {
-                    box(
-                        route: .appleHomes,
-                        platform: .appleHome,
-                        headline: appleHomeHeadline,
-                        detail: appleHomeDetail
-                    )
-                    box(
-                        route: .homeAssistants,
-                        platform: .homeAssistant,
-                        headline: homeAssistantHeadline,
-                        detail: homeAssistantDetail
-                    )
-                }
-                // Zero insets: the section is already inset, and adding to it pushed
-                // this row further in than every card below it.
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                .listRowBackground(Color.clear)
-            } footer: {
-                Text("Tap either side to see what it holds. You pick which pair to sync on the Sync screen.")
-            }
-
-            if !isHomeKitAuthorized {
-                Section {
-                    Button("Allow Access to Apple Home", action: onRequestHomeKitAccess)
-                } footer: {
-                    Text("Without HomeKit access the app cannot read your rooms and devices.")
-                }
-            }
-
-            Section {
-                NavigationLink(value: HomeRoute.localAPI) {
-                    LabeledContent {
-                        BridgePill(
-                            title: isServerRunning ? "Running" : "Stopped",
-                            systemImage: isServerRunning ? "checkmark.circle.fill" : "pause.circle.fill",
-                            tint: isServerRunning ? .green : .secondary
-                        )
-                    } label: {
-                        Label("Local API", systemImage: "point.3.connected.trianglepath.dotted")
-                    }
+                Button(action: onShowSetupAgain) {
+                    Label("Show Setup Guide Again", systemImage: "list.number")
                 }
             } footer: {
-                Text(isServerRunning
-                     ? "Serving Apple Home to your own scripts on port \(String(serverPort))."
-                     : "Turn it on to drive Apple Home from your own scripts and automations.")
+                Text("Walks through how the two sides are paired, and where the address and token go.")
             }
 
-            if supportsScheduledActions {
-                Section {
-                    NavigationLink(value: HomeRoute.scheduledActions) {
-                        LabeledContent("Scheduled Syncs", value: scheduleCount == 0 ? "None" : scheduleCount.formatted())
-                    }
-                } footer: {
-                    Text("Repeat a sync daily while this Mac is awake and the app is open.")
-                }
-            }
-
-            setupSection
             supportSection
             aboutSection
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Home")
+        .navigationTitle("Settings")
+        #if !targetEnvironment(macCatalyst)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
-
-    // MARK: Boxes
-
-    /// A button rather than a `NavigationLink`: a list row containing a link is a
-    /// single tap target, so two links in one row both open the first destination.
-    private func box(route: HomeRoute, platform: SyncPlatform, headline: String, detail: String) -> some View {
-        Button {
-            onSelect(route)
-        } label: {
-            SideBox(
-                title: platform.name,
-                systemImage: platform.symbolName,
-                tint: platform.tint,
-                headline: headline,
-                detail: detail
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(.isButton)
-    }
-
-    private var appleHomeHeadline: String {
-        guard isHomeKitAuthorized else { return "No Access" }
-        return homes.isEmpty ? "No Homes" : "\(homes.count) Home\(homes.count == 1 ? "" : "s")"
-    }
-
-    private var appleHomeDetail: String {
-        guard isHomeKitAuthorized else { return "Allow access to continue" }
-        guard !homes.isEmpty else { return "Open Apple Home once" }
-        let devices = homes.reduce(0) { $0 + $1.accessories.count }
-        return "\(devices) device\(devices == 1 ? "" : "s")"
-    }
-
-    private var homeAssistantHeadline: String {
-        connections.isEmpty ? "None Yet" : "\(connections.count) Server\(connections.count == 1 ? "" : "s")"
-    }
-
-    private var homeAssistantDetail: String {
-        guard !connections.isEmpty else { return "Add your first one" }
-        let connected = connections.filter(\.state.isConnected).count
-        return connected == connections.count ? "All connected" : "\(connected) of \(connections.count) connected"
-    }
-
-    // MARK: Setup
-
-    private var setupSection: some View {
-        Section {
-            Button("Show Setup Guide Again", action: onShowSetupAgain)
-        } header: {
-            Text("Setup")
-        } footer: {
-            Text("Walks through how the two sides are paired, and where the address and token go.")
-        }
-    }
-
-    // MARK: Support
 
     private var supportSection: some View {
         Section {
             Button(action: onTip) {
-                HStack {
-                    Label(tipTitle, systemImage: "heart.fill")
-                        .foregroundStyle(.pink)
-                    Spacer()
+                LabeledContent {
                     if tipState == .purchasing {
                         ProgressView()
                     } else if let tipProduct {
                         Text(tipProduct.displayPrice)
-                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    Label {
+                        Text(tipState == .thanks ? "Tip Sent" : "Tip the Developer")
+                    } icon: {
+                        Image(systemName: "heart.fill")
+                            .foregroundStyle(.pink)
                     }
                 }
             }
@@ -272,73 +343,34 @@ struct HomeContent: View {
         }
     }
 
-    private var tipTitle: String {
-        tipState == .thanks ? "Tip Sent" : "Tip the Developer"
-    }
-
     private var aboutSection: some View {
         Section {
+            if !appVersion.isEmpty {
+                LabeledContent("Version", value: appVersion)
+            }
+
             Link(destination: URL(string: "https://github.com/bgoncal/HomeKit-Sync-Assistant")!) {
-                LabeledContent {
-                    Image(systemName: "arrow.up.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                } label: {
-                    Label("Source on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
+                Label("Source on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
             }
 
             Link(destination: URL(string: "https://x.com/bgoncal2")!) {
-                LabeledContent {
-                    Image(systemName: "arrow.up.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                } label: {
-                    Label("@bgoncal2 on X", systemImage: "at")
-                }
+                Label("@bgoncal2 on X", systemImage: "at")
             }
         } header: {
             Text("About")
+        } footer: {
+            Text("Home Sync Assistant is open source.")
         }
     }
 }
 
-/// One of the two tappable boxes at the top of the Home screen.
-private struct SideBox: View {
-    let title: String
-    let systemImage: String
-    let tint: Color
-    let headline: String
-    let detail: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: systemImage)
-                    .foregroundStyle(tint)
-                Text(title)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Spacer(minLength: 0)
-            }
-
-            Text(headline)
-                .font(.title3.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-
-            Text(detail)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityElement(children: .combine)
+extension Bundle {
+    /// "1.2 (21)", for the About section.
+    var appVersionString: String {
+        let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let build = infoDictionary?["CFBundleVersion"] as? String ?? ""
+        guard !version.isEmpty else { return "" }
+        return build.isEmpty ? version : "\(version) (\(build))"
     }
 }
 

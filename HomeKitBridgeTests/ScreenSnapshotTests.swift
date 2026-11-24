@@ -59,6 +59,15 @@ final class HomeSnapshotTests: SnapshotTestCase {
         )
     }
 
+    func testSettings() {
+        assertScreen(
+            NavigationStack {
+                SettingsContent(tipProduct: Fixtures.tipProduct, appVersion: "1.2 (21)")
+            },
+            named: "settings"
+        )
+    }
+
     func testTheAppleHomeList() {
         assertScreen(
             NavigationStack {
