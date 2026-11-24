@@ -800,7 +800,7 @@ final class SyncEngine: ObservableObject {
     // MARK: - Scenes
 
     /// Home Assistant's state for one scene member. Brightness is 0–255 there, 0–100 in Apple Home.
-    static func homeAssistantState(for action: SceneAction, entityId: String) -> [String: Any] {
+    nonisolated static func homeAssistantState(for action: SceneAction, entityId: String) -> [String: Any] {
         var state: [String: Any] = ["state": action.isOn == false ? "off" : "on"]
         if let brightness = action.brightness, entityId.hasPrefix("light."), action.isOn != false {
             state["brightness"] = Int((Double(brightness) / 100 * 255).rounded())
@@ -810,7 +810,7 @@ final class SyncEngine: ObservableObject {
 
     /// The Apple Home action for one Home Assistant scene member, or `nil` when it
     /// is neither on nor off (a cover, a thermostat) and so cannot be carried across.
-    static func sceneAction(accessoryId: String, homeAssistantState: [String: Any]) -> SceneAction? {
+    nonisolated static func sceneAction(accessoryId: String, homeAssistantState: [String: Any]) -> SceneAction? {
         let raw = homeAssistantState["state"] as? String
         guard raw == "on" || raw == "off" else { return nil }
         var action = SceneAction(accessoryId: accessoryId, isOn: raw == "on")
