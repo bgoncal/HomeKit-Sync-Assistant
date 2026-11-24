@@ -108,17 +108,36 @@ struct AccessorySummary: Identifiable, Equatable, Codable {
     }
 }
 
+/// A group of rooms, which Apple Home calls a zone and Home Assistant a floor.
+struct ZoneSummary: Identifiable, Equatable, Codable {
+    let id: String
+    let name: String
+    let roomIds: [String]
+
+    init(id: String = UUID().uuidString, name: String, roomIds: [String] = []) {
+        self.id = id
+        self.name = name
+        self.roomIds = roomIds
+    }
+}
+
 struct HomeSummary: Identifiable, Equatable, Codable {
     let id: String
     let name: String
     var rooms: [RoomSummary]
     var accessories: [AccessorySummary]
+    var zones: [ZoneSummary]
 
-    init(id: String = UUID().uuidString, name: String, rooms: [RoomSummary] = [], accessories: [AccessorySummary] = []) {
+    init(id: String = UUID().uuidString, name: String, rooms: [RoomSummary] = [], accessories: [AccessorySummary] = [], zones: [ZoneSummary] = []) {
         self.id = id
         self.name = name
         self.rooms = rooms
         self.accessories = accessories
+        self.zones = zones
+    }
+
+    func zone(named name: String) -> ZoneSummary? {
+        zones.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
     }
 
     func room(named name: String) -> RoomSummary? {

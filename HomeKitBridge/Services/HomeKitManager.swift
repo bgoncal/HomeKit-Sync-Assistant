@@ -229,7 +229,83 @@ final class HomeKitManager: NSObject, ObservableObject {
         refreshHomes()
     }
 
+    // MARK: - Zones
+
+    @discardableResult
+    func createZone(homeId: String, name: String) async throws -> ZoneSummary {
+        guard let home = hkHome(byId: homeId) else {
+            throw BridgeError.notFound("Home not found")
+        }
+
+        let zone: HMZone = try await withCheckedThrowingContinuation { cont in
+            home.addZone(withName: name) { zone, error in
+                if let error {
+                    cont.resume(throwing: error)
+                } else if let zone {
+                    cont.resume(returning: zone)
+                } else {
+                    cont.resume(throwing: BridgeError.badRequest("Could not create zone"))
+                }
+            }
+        }
+
+        refreshHomes()
+        return ZoneSummary(id: zone.uniqueIdentifier.uuidString, name: zone.name)
+    }
+
+    func removeZone(id: String) async throws {
+        guard let (home, zone) = hkZone(byId: id) else {
+            throw BridgeError.notFound("Zone not found")
+        }
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            home.removeZone(zone) { error in
+                if let error { cont.resume(throwing: error) } else { cont.resume(returning: ()) }
+            }
+        }
+
+        refreshHomes()
+    }
+
+    /// Adds a room to a zone. A room can sit in several zones; nothing is taken out.
+    func addRoom(id roomId: String, toZoneId zoneId: String) async throws {
+        guard let (_, zone) = hkZone(byId: zoneId), let room = hkRoom(byId: roomId) else {
+            throw BridgeError.notFound("Zone or room not found")
+        }
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            zone.addRoom(room) { error in
+                if let error { cont.resume(throwing: error) } else { cont.resume(returning: ()) }
+            }
+        }
+
+        refreshHomes()
+    }
+
+    func removeRoom(id roomId: String, fromZoneId zoneId: String) async throws {
+        guard let (_, zone) = hkZone(byId: zoneId), let room = hkRoom(byId: roomId) else {
+            throw BridgeError.notFound("Zone or room not found")
+        }
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            zone.removeRoom(room) { error in
+                if let error { cont.resume(throwing: error) } else { cont.resume(returning: ()) }
+            }
+        }
+
+        refreshHomes()
+    }
+
     // MARK: - HomeKit objects
+
+    private func hkZone(byId id: String) -> (HMHome, HMZone)? {
+        for home in manager?.homes ?? [] {
+            if let zone = home.zones.first(where: { $0.uniqueIdentifier.uuidString == id }) {
+                return (home, zone)
+            }
+        }
+        return nil
+    }
 
     private func hkHome(byId id: String) -> HMHome? {
         manager?.homes.first { $0.uniqueIdentifier.uuidString == id }
@@ -292,7 +368,14 @@ final class HomeKitManager: NSObject, ObservableObject {
             id: home.uniqueIdentifier.uuidString,
             name: home.name,
             rooms: home.rooms.map { RoomSummary(id: $0.uniqueIdentifier.uuidString, name: $0.name) },
-            accessories: home.accessories.map(summary(for:))
+            accessories: home.accessories.map(summary(for:)),
+            zones: home.zones.map { zone in
+                ZoneSummary(
+                    id: zone.uniqueIdentifier.uuidString,
+                    name: zone.name,
+                    roomIds: zone.rooms.map(\.uniqueIdentifier.uuidString)
+                )
+            }
         )
     }
 

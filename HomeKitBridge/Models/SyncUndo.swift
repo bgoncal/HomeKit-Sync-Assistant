@@ -18,6 +18,14 @@ enum UndoStep: Codable, Equatable {
     case setEntityArea(entityId: String, areaId: String?)
     /// Home Assistant: remove an area the sync created.
     case removeArea(areaId: String, name: String)
+    /// Apple Home: remove a zone the sync created.
+    case removeZone(zoneId: String, name: String)
+    /// Apple Home: take a room back out of a zone it was added to.
+    case removeRoomFromZone(roomId: String, zoneId: String)
+    /// Home Assistant: remove a floor the sync created.
+    case removeFloor(floorId: String, name: String)
+    /// Home Assistant: put an area back on the floor it was on; `nil` for none.
+    case setAreaFloor(areaId: String, floorId: String?)
 }
 
 /// The last sync that wrote anything, and how to reverse it.

@@ -60,6 +60,8 @@ enum SyncDirection: String, CaseIterable, Hashable, Codable {
         case (.placement, .appleHomeToHomeAssistant): return .devicePlacementHomeToHA
         case (.names, .homeAssistantToAppleHome): return .deviceNamesHAToHome
         case (.names, .appleHomeToHomeAssistant): return .deviceNamesHomeToHA
+        case (.zones, .homeAssistantToAppleHome): return .zonesHAToHome
+        case (.zones, .appleHomeToHomeAssistant): return .zonesHomeToHA
         }
     }
 }
@@ -69,6 +71,7 @@ enum SyncSubject: String, CaseIterable, Identifiable, Hashable, Codable {
     case rooms
     case placement
     case names
+    case zones
 
     var id: String { rawValue }
 
@@ -77,6 +80,7 @@ enum SyncSubject: String, CaseIterable, Identifiable, Hashable, Codable {
         case .rooms: return "Rooms and areas"
         case .placement: return "Device placement"
         case .names: return "Device names"
+        case .zones: return "Floors and zones"
         }
     }
 
@@ -85,6 +89,7 @@ enum SyncSubject: String, CaseIterable, Identifiable, Hashable, Codable {
         case .rooms: return "square.split.bottomrightquarter"
         case .placement: return "arrow.up.and.down.and.arrow.left.and.right"
         case .names: return "textformat"
+        case .zones: return "building.2"
         }
     }
 }
@@ -98,6 +103,8 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
     case devicePlacementHomeToHA = "placement.appleHomeToHomeAssistant"
     case deviceNamesHAToHome = "names.homeAssistantToAppleHome"
     case deviceNamesHomeToHA = "names.appleHomeToHomeAssistant"
+    case zonesHAToHome = "zones.homeAssistantToAppleHome"
+    case zonesHomeToHA = "zones.appleHomeToHomeAssistant"
 
     var id: String { rawValue }
 
@@ -127,6 +134,8 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
         case .devicePlacementHomeToHA: return .devicePlacementHAToHome
         case .deviceNamesHAToHome: return .deviceNamesHomeToHA
         case .deviceNamesHomeToHA: return .deviceNamesHAToHome
+        case .zonesHAToHome: return .zonesHomeToHA
+        case .zonesHomeToHA: return .zonesHAToHome
         }
     }
 
@@ -135,14 +144,15 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
         case .roomsHAToHome, .roomsHomeToHA: return .rooms
         case .devicePlacementHAToHome, .devicePlacementHomeToHA: return .placement
         case .deviceNamesHAToHome, .deviceNamesHomeToHA: return .names
+        case .zonesHAToHome, .zonesHomeToHA: return .zones
         }
     }
 
     var direction: SyncDirection {
         switch self {
-        case .roomsHAToHome, .devicePlacementHAToHome, .deviceNamesHAToHome:
+        case .roomsHAToHome, .devicePlacementHAToHome, .deviceNamesHAToHome, .zonesHAToHome:
             return .homeAssistantToAppleHome
-        case .roomsHomeToHA, .devicePlacementHomeToHA, .deviceNamesHomeToHA:
+        case .roomsHomeToHA, .devicePlacementHomeToHA, .deviceNamesHomeToHA, .zonesHomeToHA:
             return .appleHomeToHomeAssistant
         }
     }
@@ -162,6 +172,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
             return "Rename Apple Home devices to their Home Assistant names"
         case .deviceNamesHomeToHA:
             return "Rename Home Assistant entities to their Apple Home names"
+        case .zonesHAToHome:
+            return "Group Apple Home rooms into zones from Home Assistant floors"
+        case .zonesHomeToHA:
+            return "Put Home Assistant areas on floors from Apple Home zones"
         }
     }
 
@@ -182,6 +196,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
             return "Matched Apple Home devices are renamed to their Home Assistant friendly name. Home Assistant names are not touched."
         case .deviceNamesHomeToHA:
             return "Matched Home Assistant entities are renamed to their Apple Home device name. Apple Home names are not touched."
+        case .zonesHAToHome:
+            return "Each Home Assistant floor becomes an Apple Home zone, and the rooms that match its areas are added to it. Rooms are never taken out of a zone, and Home Assistant is left untouched."
+        case .zonesHomeToHA:
+            return "Each Apple Home zone becomes a Home Assistant floor, and the areas that match its rooms are put on it. Apple Home is left untouched."
         }
     }
 
@@ -201,6 +219,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
                 return "Every matched device already uses its Home Assistant name."
             case .deviceNamesHomeToHA:
                 return "Every matched entity already uses its Apple Home name."
+            case .zonesHAToHome:
+                return "Apple Home already has a zone for every floor, with the same rooms in it."
+            case .zonesHomeToHA:
+                return "Home Assistant already has a floor for every zone, with the same areas on it."
             }
         }
 
@@ -218,6 +240,10 @@ enum SyncOperation: String, CaseIterable, Identifiable, Codable {
             noun = changeCount == 1 ? "device will be renamed in Apple Home" : "devices will be renamed in Apple Home"
         case .deviceNamesHomeToHA:
             noun = changeCount == 1 ? "entity will be renamed in Home Assistant" : "entities will be renamed in Home Assistant"
+        case .zonesHAToHome:
+            noun = changeCount == 1 ? "change will be made in Apple Home" : "changes will be made in Apple Home"
+        case .zonesHomeToHA:
+            noun = changeCount == 1 ? "change will be made in Home Assistant" : "changes will be made in Home Assistant"
         }
 
         return "\(changeCount) \(noun). \(direction.source.name) will not change."
@@ -264,6 +290,10 @@ enum SyncActionType: String {
     case renameRoom
     case moveAccessory
     case renameAccessory
+    /// An Apple Home zone or a Home Assistant floor.
+    case createZone
+    /// A room joins a zone, or an area moves onto a floor.
+    case assignZone
     case unsupported
 }
 
@@ -385,6 +415,8 @@ final class SyncEngine: ObservableObject {
         case .devicePlacementHomeToHA: return try await dryRunDevicePlacementHomeToHA(context)
         case .deviceNamesHAToHome: return try await dryRunDeviceNamesHAToHome(context)
         case .deviceNamesHomeToHA: return try await dryRunDeviceNamesHomeToHA(context)
+        case .zonesHAToHome: return try await dryRunZonesHAToHome(context)
+        case .zonesHomeToHA: return try await dryRunZonesHomeToHA(context)
         }
     }
 
@@ -506,6 +538,14 @@ final class SyncEngine: ObservableObject {
             _ = try await context.client.updateEntity(entityId: entityId, updates: ["area_id": areaId ?? NSNull()])
         case .removeArea(let areaId, _):
             try await context.client.deleteArea(areaId: areaId)
+        case .removeZone(let zoneId, _):
+            try await homeKitManager.removeZone(id: zoneId)
+        case .removeRoomFromZone(let roomId, let zoneId):
+            try await homeKitManager.removeRoom(id: roomId, fromZoneId: zoneId)
+        case .removeFloor(let floorId, _):
+            try await context.client.deleteFloor(floorId: floorId)
+        case .setAreaFloor(let areaId, let floorId):
+            try await context.client.setFloor(floorId, forAreaId: areaId)
         }
     }
 
@@ -621,7 +661,161 @@ final class SyncEngine: ObservableObject {
             let previousName = registry[entityId]?["name"] as? String
             _ = try await context.client.updateEntity(entityId: entityId, updates: ["name": newName])
             return [.renameEntity(entityId: entityId, name: previousName)]
+
+        case .zonesHAToHome:
+            return try await executeZoneChangeInAppleHome(change, context: context)
+
+        case .zonesHomeToHA:
+            return try await executeFloorChangeInHomeAssistant(change, context: context)
         }
+    }
+
+    // MARK: - Floors and zones
+
+    private func executeZoneChangeInAppleHome(_ change: SyncChange, context: SyncContext) async throws -> [UndoStep] {
+        guard let zoneName = change.targetRoomName else { return [] }
+        let home = homeKitManager.home(byId: context.home.id) ?? context.home
+        switch change.action {
+        case .createZone:
+            if home.zone(named: zoneName) != nil { return [] }
+            let zone = try await homeKitManager.createZone(homeId: context.home.id, name: zoneName)
+            return [.removeZone(zoneId: zone.id, name: zone.name)]
+        case .assignZone:
+            guard let roomId = change.roomId else { return [] }
+            var steps: [UndoStep] = []
+            let zoneId: String
+            if let zone = home.zone(named: zoneName) {
+                zoneId = zone.id
+            } else {
+                // The zone's own "Create" row was unticked; adding a room still needs it.
+                let zone = try await homeKitManager.createZone(homeId: context.home.id, name: zoneName)
+                steps.append(.removeZone(zoneId: zone.id, name: zone.name))
+                zoneId = zone.id
+            }
+            try await homeKitManager.addRoom(id: roomId, toZoneId: zoneId)
+            steps.append(.removeRoomFromZone(roomId: roomId, zoneId: zoneId))
+            return steps
+        default:
+            return []
+        }
+    }
+
+    private func executeFloorChangeInHomeAssistant(_ change: SyncChange, context: SyncContext) async throws -> [UndoStep] {
+        guard let floorName = change.targetRoomName else { return [] }
+        let floors = try await context.client.fetchFloors()
+        let existing = floors.first {
+            ($0["name"] as? String)?.caseInsensitiveCompare(floorName) == .orderedSame
+        }?["floor_id"] as? String
+
+        switch change.action {
+        case .createZone:
+            guard existing == nil, let floorId = try await context.client.createFloor(name: floorName) else { return [] }
+            return [.removeFloor(floorId: floorId, name: floorName)]
+        case .assignZone:
+            guard let areaId = change.accessoryId else { return [] }
+            var steps: [UndoStep] = []
+            var floorId = existing
+            if floorId == nil {
+                floorId = try await context.client.createFloor(name: floorName)
+                if let floorId { steps.append(.removeFloor(floorId: floorId, name: floorName)) }
+            }
+            guard let floorId else { return steps }
+            let previous = change.extraData?["Previous floor"]
+            try await context.client.setFloor(floorId, forAreaId: areaId)
+            steps.append(.setAreaFloor(areaId: areaId, floorId: previous))
+            return steps
+        default:
+            return []
+        }
+    }
+
+    private func dryRunZonesHAToHome(_ context: SyncContext) async throws -> DryRunResult {
+        progress = SyncProgress(title: "Reading floors from \(context.server.name)")
+        let floors = try await context.client.fetchFloors()
+        let areas = try await context.client.fetchAreas()
+
+        var changes: [SyncChange] = []
+        for floor in floors {
+            guard let floorId = floor["floor_id"] as? String, let floorName = floor["name"] as? String else { continue }
+            let zone = context.home.zone(named: floorName)
+            if zone == nil {
+                changes.append(SyncChange(
+                    action: .createZone,
+                    title: "Create the zone “\(floorName)” in \(context.home.name)",
+                    details: "\(context.server.name) has the floor “\(floorName)”, \(context.home.name) has no zone with that name.",
+                    homeId: context.home.id,
+                    targetRoomName: floorName
+                ))
+            }
+
+            let areaNames = areas
+                .filter { ($0["floor_id"] as? String) == floorId }
+                .compactMap { $0["name"] as? String }
+                .filter { !preferences.isRoomExcluded(homeId: context.home.id, roomName: $0) }
+            for areaName in areaNames {
+                // Rooms are created by the Rooms sync; this one only groups them.
+                guard let room = context.home.room(named: areaName) else { continue }
+                if zone?.roomIds.contains(room.id) == true { continue }
+                changes.append(SyncChange(
+                    action: .assignZone,
+                    title: "Add “\(room.name)” to the zone “\(floorName)”",
+                    details: "Its area is on the floor “\(floorName)” in \(context.server.name).",
+                    roomId: room.id,
+                    homeId: context.home.id,
+                    targetRoomName: floorName
+                ))
+            }
+        }
+
+        return result(.zonesHAToHome, context: context, changes: changes)
+    }
+
+    private func dryRunZonesHomeToHA(_ context: SyncContext) async throws -> DryRunResult {
+        progress = SyncProgress(title: "Reading floors from \(context.server.name)")
+        let floors = try await context.client.fetchFloors()
+        let areas = try await context.client.fetchAreas()
+
+        var floorNameById: [String: String] = [:]
+        for floor in floors {
+            if let id = floor["floor_id"] as? String, let name = floor["name"] as? String {
+                floorNameById[id] = name
+            }
+        }
+
+        var changes: [SyncChange] = []
+        for zone in context.home.zones {
+            if !floorNameById.values.contains(where: { $0.caseInsensitiveCompare(zone.name) == .orderedSame }) {
+                changes.append(SyncChange(
+                    action: .createZone,
+                    title: "Create the floor “\(zone.name)” in \(context.server.name)",
+                    details: "\(context.home.name) has the zone “\(zone.name)”, \(context.server.name) has no floor with that name.",
+                    targetRoomName: zone.name
+                ))
+            }
+
+            for roomId in zone.roomIds {
+                guard let room = context.home.rooms.first(where: { $0.id == roomId }),
+                      !preferences.isRoomExcluded(homeId: context.home.id, roomName: room.name),
+                      let area = areas.first(where: { ($0["name"] as? String)?.caseInsensitiveCompare(room.name) == .orderedSame }),
+                      let areaId = area["area_id"] as? String else { continue }
+                let currentFloorId = area["floor_id"] as? String
+                let currentFloor = currentFloorId.flatMap { floorNameById[$0] }
+                if currentFloor?.caseInsensitiveCompare(zone.name) == .orderedSame { continue }
+
+                var extra: [String: String] = [:]
+                if let currentFloorId { extra["Previous floor"] = currentFloorId }
+                changes.append(SyncChange(
+                    action: .assignZone,
+                    title: "Put “\(room.name)” on the floor “\(zone.name)”",
+                    details: "Floor \(currentFloor ?? "None") → \(zone.name), to match its zone in \(context.home.name).",
+                    accessoryId: areaId,
+                    targetRoomName: zone.name,
+                    extraData: extra
+                ))
+            }
+        }
+
+        return result(.zonesHomeToHA, context: context, changes: changes)
     }
 
     // MARK: - Dry Run Implementations

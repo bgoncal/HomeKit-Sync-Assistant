@@ -279,6 +279,37 @@ final class HAWebSocketClient: ObservableObject {
         ])
     }
 
+    /// Fetch floor registry
+    func fetchFloors() async throws -> [[String: Any]] {
+        let result = try await sendCommand(["type": "config/floor_registry/list"])
+        return result["result"] as? [[String: Any]] ?? []
+    }
+
+    /// Create a floor; returns its `floor_id`.
+    func createFloor(name: String) async throws -> String? {
+        let result = try await sendCommand([
+            "type": "config/floor_registry/create",
+            "name": name
+        ])
+        return (result["result"] as? [String: Any])?["floor_id"] as? String
+    }
+
+    func deleteFloor(floorId: String) async throws {
+        _ = try await sendCommand([
+            "type": "config/floor_registry/delete",
+            "floor_id": floorId
+        ])
+    }
+
+    /// Put an area on a floor, or take it off one with `nil`.
+    func setFloor(_ floorId: String?, forAreaId areaId: String) async throws {
+        _ = try await sendCommand([
+            "type": "config/area_registry/update",
+            "area_id": areaId,
+            "floor_id": floorId ?? NSNull()
+        ])
+    }
+
     /// Delete an area. Entities in it go back to having no area.
     func deleteArea(areaId: String) async throws {
         _ = try await sendCommand([

@@ -499,6 +499,8 @@ struct SyncContent: View {
         case .renameRoom: return "character.cursor.ibeam"
         case .moveAccessory: return "arrow.left.arrow.right"
         case .renameAccessory: return "pencil"
+        case .createZone: return "building.2"
+        case .assignZone: return "square.stack.3d.up"
         case .unsupported: return "exclamationmark.triangle"
         }
     }
@@ -509,6 +511,8 @@ struct SyncContent: View {
         case .renameRoom: return .orange
         case .moveAccessory: return .blue
         case .renameAccessory: return .purple
+        case .createZone: return .teal
+        case .assignZone: return .indigo
         case .unsupported: return .red
         }
     }
