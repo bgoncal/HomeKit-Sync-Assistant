@@ -55,6 +55,16 @@ struct HomeAssistantServer: Identifiable, Codable, Equatable {
         try container.encode(updatedAt, forKey: .updatedAt)
     }
 
+    /// The address in a form two typings of the same server agree on: no scheme, no
+    /// trailing slash, lowercased. "HTTP://HA.local:8123/" and "ha.local:8123" match.
+    var comparableAddress: String {
+        var value = HAConfiguration.normalizedURL(address).lowercased()
+        for scheme in ["https://", "http://", "wss://", "ws://"] where value.hasPrefix(scheme) {
+            value = String(value.dropFirst(scheme.count))
+        }
+        return value
+    }
+
     /// Two records are the same to a person when everything but the timestamp matches.
     func hasSameContent(as other: HomeAssistantServer) -> Bool {
         id == other.id && name == other.name && address == other.address && token == other.token

@@ -53,6 +53,7 @@
 		E002733C80DB66394E6D20F2 /* PairDifferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F002733C80DB66394E6D20F2 /* PairDifferences.swift */; };
 		E0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */; };
 		E60606E141CA60E2D2B10BD7 /* SyncIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60606E141CA60E2D2B10BD7 /* SyncIntents.swift */; };
+		E95D097B703E67D2B07AD127 /* ConnectionProblem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95D097B703E67D2B07AD127 /* ConnectionProblem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -115,6 +116,7 @@
 		F002733C80DB66394E6D20F2 /* PairDifferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairDifferences.swift; sourceTree = "<group>"; };
 		F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DifferencesView.swift; sourceTree = "<group>"; };
 		F60606E141CA60E2D2B10BD7 /* SyncIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncIntents.swift; sourceTree = "<group>"; };
+		F95D097B703E67D2B07AD127 /* ConnectionProblem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionProblem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +174,7 @@
 		A4000004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				F95D097B703E67D2B07AD127 /* ConnectionProblem.swift */,
 				F002733C80DB66394E6D20F2 /* PairDifferences.swift */,
 				F05AE5525AD5C00011707431 /* SyncPreferences.swift */,
 				F874B0E8B53230C8C5508EE7 /* SyncUndo.swift */,
@@ -333,6 +336,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E95D097B703E67D2B07AD127 /* ConnectionProblem.swift in Sources */,
 				E60606E141CA60E2D2B10BD7 /* SyncIntents.swift in Sources */,
 				E0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift in Sources */,
 				E002733C80DB66394E6D20F2 /* PairDifferences.swift in Sources */,

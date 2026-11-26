@@ -434,10 +434,40 @@ final class ServerDetailSnapshotTests: SnapshotTestCase {
                 ServerDetailContent(
                     server: .constant(HomeAssistantServer(name: "Studio", address: "studio.local:8123/lovelace/0", token: "Bearer abc")),
                     isNew: true,
-                    connectionState: .failed("Could not connect. Check the address and token, then try again.")
+                    connectionState: .failed(.invalidAddress("studio.local:8123/lovelace/0"))
                 )
             },
             named: "server-detail-new"
+        )
+    }
+
+    /// Adding failed: the reason, what to check, and a way to add it anyway — nothing saved yet.
+    func testAddingAServerThatDoesNotAnswer() {
+        assertScreen(
+            NavigationStack {
+                ServerDetailContent(
+                    server: .constant(HomeAssistantServer(name: "Cabin", address: "http://cabin.local:8123", token: String(repeating: "a", count: 40))),
+                    isNew: true,
+                    connectionState: .failed(ConnectionProblem.describe(
+                        URLError(.timedOut), statusCode: nil, url: URL(string: "ws://cabin.local:8123/api/websocket")!
+                    ))
+                )
+            },
+            named: "server-detail-new-no-answer"
+        )
+    }
+
+    func testAddingAServerThatIsAlreadyThere() {
+        assertScreen(
+            NavigationStack {
+                ServerDetailContent(
+                    server: .constant(HomeAssistantServer(name: "House again", address: Fixtures.houseServer.address, token: String(repeating: "a", count: 40))),
+                    isNew: true,
+                    connectionState: .idle,
+                    duplicateName: Fixtures.houseServer.name
+                )
+            },
+            named: "server-detail-new-duplicate"
         )
     }
 }

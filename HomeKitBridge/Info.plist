@@ -13,5 +13,7 @@
 	<array>
 		<string>_hap._tcp</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Home Sync Assistant connects to Home Assistant and to your own scripts on your home network.</string>
 </dict>
 </plist>

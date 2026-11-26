@@ -126,8 +126,28 @@ final class ConnectionStore: ObservableObject {
 
     // MARK: - Editing
 
+    /// The server already set up with this address, other than `excluding`, if any.
+    /// Adding the same Home Assistant twice is never what someone means.
+    func server(matchingAddress address: String, excluding id: UUID? = nil) -> HomeAssistantServer? {
+        let wanted = HomeAssistantServer(address: address).comparableAddress
+        guard !wanted.isEmpty else { return nil }
+        return servers.first { $0.id != id && $0.comparableAddress == wanted }
+    }
+
+    /// Adds a server. Adding one that is already here — the same record, or the same
+    /// address — updates it instead, so retrying after an error never makes a copy.
     @discardableResult
     func add(_ server: HomeAssistantServer) -> HomeAssistantServer {
+        if self.server(id: server.id) != nil {
+            update(server)
+            return self.server(id: server.id) ?? server
+        }
+        if var existing = self.server(matchingAddress: server.address) {
+            existing.token = server.token.isEmpty ? existing.token : server.token
+            update(existing)
+            return self.server(id: existing.id) ?? existing
+        }
+
         var server = server
         if server.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             server.name = defaultName()
@@ -178,6 +198,23 @@ final class ConnectionStore: ObservableObject {
     }
 
     // MARK: - Connections
+
+    /// Tries an address and token without saving anything, so a server is only added
+    /// once it is known to work (or the person says to add it anyway).
+    func testConnection(address: String, token: String) async -> ConnectionProblem? {
+        let client = HAWebSocketClient(address: HAConfiguration.normalizedURL(address), token: token)
+        let ok = await client.connect()
+        defer { client.disconnect() }
+        return ok ? nil : (client.problem ?? ConnectionProblem(
+            title: "Could Not Connect",
+            message: client.connectionError ?? "Check the address and token, then try again."
+        ))
+    }
+
+    /// Why the last attempt to reach a server failed, when it did.
+    func problem(forServerId id: UUID) -> ConnectionProblem? {
+        clients[id]?.problem
+    }
 
     func client(forServerId serverId: UUID) -> HAWebSocketClient? {
         guard let server = server(id: serverId) else { return nil }
@@ -232,8 +269,48 @@ final class ConnectionStore: ObservableObject {
         }
 
         apply(payload)
+        removeAddressDuplicates()
         // Whatever the merge produced is now the shared truth.
-        write(payload)
+        write(currentPayload())
+    }
+
+    /// One record per id, the newest. Earlier versions could append the same server
+    /// several times while it was being typed.
+    static func uniqueById(_ servers: [HomeAssistantServer]) -> [HomeAssistantServer] {
+        var seen: [UUID: Int] = [:]
+        var result: [HomeAssistantServer] = []
+        for server in servers {
+            if let index = seen[server.id] {
+                if server.updatedAt > result[index].updatedAt { result[index] = server }
+            } else {
+                seen[server.id] = result.count
+                result.append(server)
+            }
+        }
+        return result
+    }
+
+    /// Folds servers that are the same Home Assistant — same address and same token —
+    /// into one. Earlier versions made such copies when adding was retried after an
+    /// error. The one a home was last synced with is kept, else the oldest.
+    private func removeAddressDuplicates() {
+        var groups: [String: [HomeAssistantServer]] = [:]
+        for server in servers where !server.comparableAddress.isEmpty {
+            groups["\(server.comparableAddress)|\(server.token)", default: []].append(server)
+        }
+        let used = Set(lastUsedServerByHome.values)
+        for group in groups.values where group.count > 1 {
+            let keep = group.first { used.contains($0.id) }
+                ?? group.min { ($0.updatedAt, $0.id.uuidString) < ($1.updatedAt, $1.id.uuidString) }
+            for duplicate in group where duplicate.id != keep?.id {
+                servers.removeAll { $0.id == duplicate.id }
+                deletedServers.append(ConfigurationPayload.DeletedServer(id: duplicate.id, deletedAt: Date()))
+                tokens.removeToken(forServerId: duplicate.id)
+            }
+        }
+        lastUsedServerByHome = lastUsedServerByHome.filter { pairing in
+            servers.contains { $0.id == pairing.value }
+        }
     }
 
     /// Another device changed something. Merge it in rather than overwriting, so an
@@ -253,7 +330,7 @@ final class ConnectionStore: ObservableObject {
 
     private func apply(_ payload: ConfigurationPayload) {
         // Tokens never travel in the payload; they come from the keychain.
-        servers = payload.servers.map { server in
+        servers = Self.uniqueById(payload.servers).map { server in
             var server = server
             server.token = tokens.token(forServerId: server.id) ?? server.token
             return server

@@ -77,6 +77,8 @@ enum HAConfiguration {
 final class HAWebSocketClient: ObservableObject {
     @Published private(set) var isConnected = false
     @Published private(set) var connectionError: String?
+    /// Why the last attempt failed, with a title for the status row.
+    @Published private(set) var problem: ConnectionProblem?
 
     /// Which server this client talks to. One client per server; `ConnectionStore`
     /// keeps them and updates the credentials when they are edited.
@@ -116,75 +118,88 @@ final class HAWebSocketClient: ObservableObject {
     private func performConnect() async -> Bool {
         disconnect()
         connectionError = nil
+        problem = nil
 
         let base = HAConfiguration.normalizedURL(address)
         let token = self.token.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !base.isEmpty else {
-            connectionError = "No Home Assistant address is set. Add one in Settings."
-            return false
-        }
+        guard !base.isEmpty else { return fail(.noAddress) }
+        guard !token.isEmpty else { return fail(.noToken) }
+        guard let url = HAConfiguration.webSocketURL(for: base) else { return fail(.invalidAddress(base)) }
+        let host = url.host ?? base
 
-        guard !token.isEmpty else {
-            connectionError = "No Home Assistant access token is set. Add one in Settings."
-            return false
-        }
-
-        guard let url = HAConfiguration.webSocketURL(for: base) else {
-            connectionError = "“\(base)” is not a valid Home Assistant address."
-            return false
-        }
-
-        let session = URLSession(configuration: .default)
+        // A person waits on this, so give up well before URLSession's default minute.
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 12
+        configuration.waitsForConnectivity = false
+        let session = URLSession(configuration: configuration)
         let task = session.webSocketTask(with: url)
         self.urlSession = session
         self.webSocket = task
         task.resume()
 
-        // Wait for auth_required
-        guard let authRequired = await receiveMessage(),
-              let type = (authRequired as? [String: Any])?["type"] as? String,
-              type == "auth_required" else {
-            connectionError = "Connected to \(url.host ?? base), but it did not answer like a Home Assistant server."
-            disconnect()
-            return false
+        // Home Assistant speaks first, asking for the token.
+        switch await receiveHandshakeMessage() {
+        case .failure(let error):
+            let status = (task.response as? HTTPURLResponse)?.statusCode
+            return fail(ConnectionProblem.describe(error, statusCode: status, url: url))
+        case .success(let message):
+            guard (message as? [String: Any])?["type"] as? String == "auth_required" else {
+                return fail(.notHomeAssistant(host: host))
+            }
         }
 
-        // Send auth
-        let authMsg: [String: Any] = ["type": "auth", "access_token": token]
-        guard let authData = try? JSONSerialization.data(withJSONObject: authMsg),
-              let authStr = String(data: authData, encoding: .utf8) else {
-            connectionError = "Failed to encode auth message"
-            disconnect()
-            return false
+        let authMessage: [String: Any] = ["type": "auth", "access_token": token]
+        guard let authData = try? JSONSerialization.data(withJSONObject: authMessage),
+              let authString = String(data: authData, encoding: .utf8) else {
+            return fail(.noSignInAnswer(host: host))
         }
 
         do {
-            try await task.send(.string(authStr))
+            try await task.send(.string(authString))
         } catch {
-            connectionError = "Failed to send auth: \(error.localizedDescription)"
-            disconnect()
-            return false
+            let status = (task.response as? HTTPURLResponse)?.statusCode
+            return fail(ConnectionProblem.describe(error, statusCode: status, url: url))
         }
 
-        // Wait for auth_ok or auth_invalid
-        guard let authResult = await receiveMessage(),
-              let resultType = (authResult as? [String: Any])?["type"] as? String else {
-            connectionError = "Home Assistant did not answer the sign-in request."
-            disconnect()
-            return false
+        switch await receiveHandshakeMessage() {
+        case .failure:
+            return fail(.noSignInAnswer(host: host))
+        case .success(let message):
+            let answer = message as? [String: Any]
+            if answer?["type"] as? String == "auth_ok" {
+                isConnected = true
+                connectionError = nil
+                problem = nil
+                startReceiveLoop()
+                return true
+            }
+            return fail(.tokenRejected(reason: answer?["message"] as? String))
         }
+    }
 
-        if resultType == "auth_ok" {
-            isConnected = true
-            connectionError = nil
-            startReceiveLoop()
-            return true
-        } else {
-            let msg = (authResult as? [String: Any])?["message"] as? String ?? "Unknown error"
-            connectionError = "Home Assistant rejected the access token: \(msg)"
-            disconnect()
-            return false
+    /// Records why connecting failed and closes whatever was opened.
+    private func fail(_ problem: ConnectionProblem) -> Bool {
+        self.problem = problem
+        connectionError = problem.message
+        disconnect()
+        return false
+    }
+
+    /// One message during sign-in, keeping the error so it can be explained.
+    private func receiveHandshakeMessage() async -> Result<Any, Error> {
+        guard let webSocket else { return .failure(URLError(.networkConnectionLost)) }
+        do {
+            switch try await webSocket.receive() {
+            case .string(let text):
+                return .success(try JSONSerialization.jsonObject(with: Data(text.utf8)))
+            case .data(let data):
+                return .success(try JSONSerialization.jsonObject(with: data))
+            @unknown default:
+                return .failure(URLError(.cannotDecodeContentData))
+            }
+        } catch {
+            return .failure(error)
         }
     }
 
@@ -380,23 +395,6 @@ final class HAWebSocketClient: ObservableObject {
     }
 
     // MARK: - Private
-
-    private func receiveMessage() async -> Any? {
-        guard let ws = webSocket else { return nil }
-        do {
-            let message = try await ws.receive()
-            switch message {
-            case .string(let text):
-                return try JSONSerialization.jsonObject(with: Data(text.utf8))
-            case .data(let data):
-                return try JSONSerialization.jsonObject(with: data)
-            @unknown default:
-                return nil
-            }
-        } catch {
-            return nil
-        }
-    }
 
     private func startReceiveLoop() {
         receiveTask = Task { [weak self] in

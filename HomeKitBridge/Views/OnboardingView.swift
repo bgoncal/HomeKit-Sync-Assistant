@@ -51,7 +51,7 @@ enum ConnectionTestState: Equatable {
     case idle
     case testing
     case succeeded
-    case failed(String)
+    case failed(ConnectionProblem)
 }
 
 // MARK: - Connected view
@@ -109,24 +109,20 @@ struct OnboardingView: View {
         onboardingComplete = true
     }
 
-    /// Writes the draft into the store, adding it the first time.
+    /// Writes the draft into the store. `add` folds a repeat of the same server or the
+    /// same address into the existing record, so going back and forth never copies it.
     private func saveServer() {
-        if connections.server(id: draft.id) == nil {
-            draft = connections.add(draft)
-        } else {
-            connections.update(draft)
-        }
+        guard draft.isConfigured else { return }
+        draft = connections.add(draft)
     }
 
+    /// Tries the typed address and token without saving them, so a failed attempt
+    /// leaves nothing behind; the server is saved when setup moves on.
     private func testConnection() {
-        saveServer()
         connectionState = .testing
         Task {
-            let ok = await syncEngine.testConnection(serverId: draft.id)
-            connectionState = ok
-                ? .succeeded
-                : .failed(connections.state(forServerId: draft.id).message
-                          ?? "Could not connect. Check the address and token, then try again.")
+            let problem = await connections.testConnection(address: draft.normalizedAddress, token: draft.token)
+            connectionState = problem.map(ConnectionTestState.failed) ?? .succeeded
         }
     }
 }
@@ -473,8 +469,8 @@ struct OnboardingContent: View {
             return nil
         case .succeeded:
             return ("Connected", "\(server.name) answered and accepted the token.", "checkmark.circle.fill", .green)
-        case .failed(let message):
-            return ("Not Connected", message, "exclamationmark.circle.fill", .red)
+        case .failed(let problem):
+            return (problem.title, problem.message, "exclamationmark.circle.fill", .red)
         }
     }
 
@@ -507,7 +503,7 @@ struct OnboardingContent: View {
             Section {
                 BridgeFeatureRow(
                     systemImage: "square.grid.2x2",
-                    title: "Start on Dashboard",
+                    title: "Start on Home",
                     message: "It shows whether both sides and the local API are ready.",
                     tint: .blue
                 )

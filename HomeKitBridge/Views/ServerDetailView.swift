@@ -14,12 +14,17 @@ struct ServerDetailView: View {
     @State private var connectionState: ConnectionTestState = .idle
     @State private var didLoad = false
 
+    private var isNew: Bool { serverId == nil }
+
     var body: some View {
         ServerDetailContent(
             server: $draft,
-            isNew: serverId == nil,
+            isNew: isNew,
             connectionState: connectionState,
-            onTestConnection: testConnection,
+            duplicateName: connections.server(matchingAddress: draft.address, excluding: draft.id)?.name,
+            onTestConnection: { Task { await test() } },
+            onAdd: { Task { await addAfterTesting() } },
+            onAddAnyway: add,
             onDelete: {
                 if let serverId {
                     connections.remove(serverId: serverId)
@@ -38,34 +43,58 @@ struct ServerDetailView: View {
         }
         .onChange(of: draft) { _, newValue in
             connectionState = .idle
-            if serverId == nil {
-                connections.add(newValue)
-            } else {
+            // An existing server saves as it is edited, like Settings. A new one is only
+            // saved when Add is tapped, so a failed attempt never leaves a copy behind.
+            if !isNew {
                 connections.update(newValue)
             }
         }
     }
 
-    private func testConnection() {
+    private func test() async {
         connectionState = .testing
-        Task {
+        if isNew {
+            let problem = await connections.testConnection(address: draft.normalizedAddress, token: draft.token)
+            connectionState = problem.map(ConnectionTestState.failed) ?? .succeeded
+        } else {
             let ok = await syncEngine.testConnection(serverId: draft.id)
-            connectionState = ok
-                ? .succeeded
-                : .failed(connections.state(forServerId: draft.id).message
-                          ?? "Could not connect. Check the address and token, then try again.")
+            connectionState = ok ? .succeeded : .failed(
+                connections.problem(forServerId: draft.id)
+                    ?? ConnectionProblem(title: "Could Not Connect", message: connections.state(forServerId: draft.id).message
+                        ?? "Check the address and token, then try again.")
+            )
         }
+    }
+
+    private func addAfterTesting() async {
+        await test()
+        if connectionState == .succeeded {
+            add()
+        }
+    }
+
+    private func add() {
+        let saved = connections.add(draft)
+        Task { await connections.connect(serverId: saved.id) }
+        dismiss()
     }
 }
 
-/// Everything about one Home Assistant: what it is called, how to reach it, and
-/// which Apple Homes it serves.
+/// Everything about one Home Assistant: what it is called, and how to reach it.
 struct ServerDetailContent: View {
     @Binding var server: HomeAssistantServer
     var isNew = false
     let connectionState: ConnectionTestState
+    /// The server that already uses this address, if any.
+    var duplicateName: String?
     var onTestConnection: () -> Void = {}
+    var onAdd: () -> Void = {}
+    var onAddAnyway: () -> Void = {}
     var onDelete: () -> Void = {}
+
+    private var canAdd: Bool {
+        server.isConfigured && duplicateName == nil && connectionState != .testing
+    }
 
     var body: some View {
         Form {
@@ -75,7 +104,7 @@ struct ServerDetailContent: View {
                         .multilineTextAlignment(.trailing)
                 }
             } footer: {
-                Text("Shown wherever this server is named — on the Dashboard, in previews, and in Activity.")
+                Text("Shown wherever this server is named — on Home, in previews, and in Activity.")
             }
 
             Section {
@@ -103,13 +132,24 @@ struct ServerDetailContent: View {
                 }
                 .disabled(connectionState == .testing || !server.isConfigured)
 
-                if let result = connectionResult {
+                if let duplicateName {
+                    BridgeStatusRow(
+                        title: "Already Added",
+                        message: "“\(duplicateName)” already uses this address. Open it from the Home Assistant list to change its token instead.",
+                        systemImage: "square.on.square",
+                        tint: .orange
+                    )
+                } else if let result = connectionResult {
                     BridgeStatusRow(
                         title: result.title,
                         message: result.message,
                         systemImage: result.systemImage,
                         tint: result.tint
                     )
+                }
+
+                if isNew, case .failed = connectionState, duplicateName == nil {
+                    Button("Add Anyway", action: onAddAnyway)
                 }
             } header: {
                 Text("Connection")
@@ -125,16 +165,30 @@ struct ServerDetailContent: View {
                 }
             }
         }
-        .navigationTitle(server.name.isEmpty ? "Home Assistant" : server.name)
+        .navigationTitle(isNew ? "Add Home Assistant" : (server.name.isEmpty ? "Home Assistant" : server.name))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if isNew {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: onAdd)
+                        .disabled(!canAdd)
+                }
+            }
+        }
     }
 
     private var connectionFooter: String {
+        if isNew, case .failed = connectionState {
+            return "Nothing has been saved. Fix the address or token and tap Add again, or add it anyway if Home Assistant is simply out of reach right now."
+        }
         if server.address.isEmpty || server.token.isEmpty {
             return "Enter the address you use to open Home Assistant, and a long-lived access token from your profile page. The token is kept in your keychain, and iCloud Keychain carries it to your other devices."
         }
         if let problem = server.configurationProblem {
             return problem
+        }
+        if isNew {
+            return "Add tests the connection first, so a server is only saved once it answers."
         }
         if let url = HAConfiguration.webSocketURL(for: server.address) {
             return "Connects to \(url.absoluteString)."
@@ -148,8 +202,8 @@ struct ServerDetailContent: View {
             return nil
         case .succeeded:
             return ("Connected", "\(server.name) answered and accepted the token.", "checkmark.circle.fill", .green)
-        case .failed(let message):
-            return ("Not Connected", message, "exclamationmark.circle.fill", .red)
+        case .failed(let problem):
+            return (problem.title, problem.message, "exclamationmark.circle.fill", .red)
         }
     }
 }

@@ -46,7 +46,7 @@ final class OnboardingSnapshotTests: SnapshotTestCase {
             onboarding(
                 step: .homeAssistant,
                 server: HomeAssistantServer(name: "House", address: "http://homeassistant.local:8123", token: "short-token"),
-                connectionState: .failed("Could not connect. Check the address and token, then try again.")
+                connectionState: .failed(.tokenRejected(reason: "Invalid access token"))
             ),
             named: "onboarding-home-assistant-failed"
         )
