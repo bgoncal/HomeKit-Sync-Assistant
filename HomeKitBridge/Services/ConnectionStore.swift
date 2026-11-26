@@ -143,6 +143,8 @@ final class ConnectionStore: ObservableObject {
             return self.server(id: server.id) ?? server
         }
         if var existing = self.server(matchingAddress: server.address) {
+            // What was just typed wins: the address (an https:// retry, say) and the token.
+            existing.address = server.address
             existing.token = server.token.isEmpty ? existing.token : server.token
             update(existing)
             return self.server(id: existing.id) ?? existing
@@ -290,27 +292,52 @@ final class ConnectionStore: ObservableObject {
         return result
     }
 
-    /// Folds servers that are the same Home Assistant — same address and same token —
-    /// into one. Earlier versions made such copies when adding was retried after an
-    /// error. The one a home was last synced with is kept, else the oldest.
+    /// Folds servers that are the same Home Assistant into one. Earlier versions made
+    /// such copies when adding was retried after an error.
+    ///
+    /// Every device must make the same choice, or two devices tombstone each other's
+    /// survivor and the server is lost everywhere. So:
+    /// - Copies match only on the full address, scheme included, and on a token every
+    ///   one of them has in this device's keychain — a missing token never matches.
+    /// - The copy kept is the one with the lowest id, a fact no edit changes.
+    /// - Keychain items are left alone: another device may still be editing a copy.
+    /// - Remembered pairings move to the kept copy; `foldedServerIds` lets the app move
+    ///   manual pairings too, and say what happened in Activity.
     private func removeAddressDuplicates() {
         var groups: [String: [HomeAssistantServer]] = [:]
-        for server in servers where !server.comparableAddress.isEmpty {
-            groups["\(server.comparableAddress)|\(server.token)", default: []].append(server)
+        for server in servers {
+            let key = server.foldingAddress
+            guard !key.isEmpty,
+                  let token = tokens.token(forServerId: server.id), !token.isEmpty else { continue }
+            groups["\(key)|\(token)", default: []].append(server)
         }
-        let used = Set(lastUsedServerByHome.values)
+
+        var folded: [UUID: UUID] = [:]
         for group in groups.values where group.count > 1 {
-            let keep = group.first { used.contains($0.id) }
-                ?? group.min { ($0.updatedAt, $0.id.uuidString) < ($1.updatedAt, $1.id.uuidString) }
-            for duplicate in group where duplicate.id != keep?.id {
+            guard let keep = group.min(by: { $0.id.uuidString < $1.id.uuidString }) else { continue }
+            for duplicate in group where duplicate.id != keep.id {
+                folded[duplicate.id] = keep.id
                 servers.removeAll { $0.id == duplicate.id }
+                deletedServers.removeAll { $0.id == duplicate.id }
                 deletedServers.append(ConfigurationPayload.DeletedServer(id: duplicate.id, deletedAt: Date()))
-                tokens.removeToken(forServerId: duplicate.id)
+                clients[duplicate.id]?.disconnect()
+                clients[duplicate.id] = nil
+                states[duplicate.id] = nil
             }
         }
-        lastUsedServerByHome = lastUsedServerByHome.filter { pairing in
-            servers.contains { $0.id == pairing.value }
-        }
+        guard !folded.isEmpty else { return }
+
+        lastUsedServerByHome = lastUsedServerByHome.mapValues { folded[$0] ?? $0 }
+        foldedServers.merge(folded) { _, new in new }
+    }
+
+    /// Copies folded into another server at launch, copy → kept. Read once by the app
+    /// to move manual pairings and to log what was tidied up.
+    private(set) var foldedServers: [UUID: UUID] = [:]
+
+    func takeFoldedServers() -> [UUID: UUID] {
+        defer { foldedServers = [:] }
+        return foldedServers
     }
 
     /// Another device changed something. Merge it in rather than overwriting, so an

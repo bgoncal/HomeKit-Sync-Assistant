@@ -106,6 +106,20 @@ final class SyncPreferencesStoreTests: XCTestCase {
         XCTAssertNotNil(cloud.storage[SyncPreferencesStore.defaultsKey])
     }
 
+    /// When duplicate servers are folded, pairings made against a copy follow to the kept one.
+    func testManualPairingsFollowAFoldedServer() {
+        let store = SyncPreferencesStore(defaults: defaults)
+        let copy = UUID(), kept = UUID(), other = UUID()
+        store.setManualEntityId("lock.front_door", serverId: copy, forAccessoryId: "lock")
+        store.setManualEntityId("light.desk", serverId: other, forAccessoryId: "lamp")
+
+        store.moveManualPairings(from: [copy: kept])
+
+        XCTAssertEqual(store.manualEntityId(forAccessoryId: "lock", serverId: kept), "lock.front_door")
+        XCTAssertNil(store.manualEntityId(forAccessoryId: "lock", serverId: copy))
+        XCTAssertEqual(store.manualEntityId(forAccessoryId: "lamp", serverId: other), "light.desk")
+    }
+
     func testAnExcludedRoomExcludesItsDevices() {
         let store = SyncPreferencesStore(defaults: defaults)
         store.setRoomExcluded(true, homeId: Fixtures.home.id, roomName: Fixtures.kitchenLight.roomName)

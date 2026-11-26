@@ -120,6 +120,25 @@ final class SyncPreferencesStore: ObservableObject {
         save()
     }
 
+    /// Moves hand-made pairings from servers folded into another one onto the server
+    /// that was kept. They are the same Home Assistant, so the entity IDs still hold.
+    func moveManualPairings(from folded: [UUID: UUID]) {
+        guard !folded.isEmpty else { return }
+        var changed = false
+        for (accessoryId, entry) in payload.manualPairings {
+            guard let value = entry.value, let separator = value.firstIndex(of: "|"),
+                  let serverId = UUID(uuidString: String(value[..<separator])),
+                  let kept = folded[serverId] else { continue }
+            let entityId = String(value[value.index(after: separator)...])
+            payload.manualPairings[accessoryId] = PreferenceEntry(
+                value: SyncPreferencesPayload.pairingValue(serverId: kept, entityId: entityId),
+                updatedAt: now()
+            )
+            changed = true
+        }
+        if changed { save() }
+    }
+
     // MARK: - Persistence
 
     private func save() {

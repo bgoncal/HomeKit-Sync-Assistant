@@ -65,6 +65,15 @@ struct HomeAssistantServer: Identifiable, Codable, Equatable {
         return value
     }
 
+    /// The address with its scheme, for deciding that two records are the same server.
+    /// Stricter than `comparableAddress`: http:// and https:// copies stay apart, since
+    /// one of them may be the one that does not work. No scheme means http://.
+    var foldingAddress: String {
+        let value = HAConfiguration.normalizedURL(address).lowercased()
+        guard !value.isEmpty else { return "" }
+        return value.contains("://") ? value : "http://" + value
+    }
+
     /// Two records are the same to a person when everything but the timestamp matches.
     func hasSameContent(as other: HomeAssistantServer) -> Bool {
         id == other.id && name == other.name && address == other.address && token == other.token

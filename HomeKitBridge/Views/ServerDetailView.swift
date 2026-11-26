@@ -45,7 +45,8 @@ struct ServerDetailView: View {
             connectionState = .idle
             // An existing server saves as it is edited, like Settings. A new one is only
             // saved when Add is tapped, so a failed attempt never leaves a copy behind.
-            if !isNew {
+            // Typing another server's address is shown as "Already Added" and not saved.
+            if !isNew, connections.server(matchingAddress: newValue.address, excluding: newValue.id) == nil {
                 connections.update(newValue)
             }
         }

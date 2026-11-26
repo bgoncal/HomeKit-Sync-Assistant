@@ -165,18 +165,71 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertNil(store.server(matchingAddress: "house.local:8123", excluding: first.id))
     }
 
-    /// Copies left by earlier versions — same id appended, or same address and token — fold on launch.
-    func testDuplicatesFromEarlierVersionsAreFoldedOnLaunch() throws {
-        let original = HomeAssistantServer(name: "House", address: "http://house.local:8123", token: token, updatedAt: Date(timeIntervalSince1970: 1_000))
-        let retry = HomeAssistantServer(name: "Home Assistant", address: "house.local:8123", token: token, updatedAt: Date(timeIntervalSince1970: 2_000))
-        let beach = HomeAssistantServer(name: "Beach", address: "http://beach.local:8123", token: token, updatedAt: Date(timeIntervalSince1970: 3_000))
-        let payload = ConfigurationPayload(servers: [original, original, retry, beach])
+    private func storeHolding(_ servers: [HomeAssistantServer], tokens values: [UUID: String], lastUsed: [String: UUID] = [:]) throws -> ConnectionStore {
+        let payload = ConfigurationPayload(servers: servers, lastUsedServerByHome: lastUsed)
         defaults.set(try JSONEncoder().encode(payload), forKey: "homeAssistantConfiguration")
-        for server in [original, retry, beach] { tokens.setToken(token, forServerId: server.id) }
+        for (id, token) in values { tokens.setToken(token, forServerId: id) }
+        return makeStore()
+    }
 
+    private func server(_ id: String, _ name: String, _ address: String, at time: TimeInterval) -> HomeAssistantServer {
+        HomeAssistantServer(id: UUID(uuidString: id)!, name: name, address: address, updatedAt: Date(timeIntervalSince1970: time))
+    }
+
+    /// Copies left by earlier versions — the same id appended, or the same address and
+    /// token — fold on launch into the copy with the lowest id, the same on every device.
+    func testDuplicatesFromEarlierVersionsFoldIntoTheLowestId() throws {
+        let low = server("00000000-0000-0000-0000-000000000001", "Home Assistant", "house.local:8123", at: 2_000)
+        let high = server("FFFFFFFF-0000-0000-0000-000000000001", "House", "http://house.local:8123", at: 1_000)
+        let beach = server("AAAAAAAA-0000-0000-0000-000000000001", "Beach", "http://beach.local:8123", at: 3_000)
+
+        let store = try storeHolding(
+            [high, high, low, beach],
+            tokens: [low.id: token, high.id: token, beach.id: token],
+            lastUsed: ["home": high.id]
+        )
+
+        XCTAssertEqual(Set(store.servers.map(\.id)), [low.id, beach.id])
+        // The remembered pairing moves to the copy that was kept, and its token stays put.
+        XCTAssertEqual(store.lastUsedServerByHome["home"], low.id)
+        XCTAssertEqual(tokens.token(forServerId: high.id), token)
+        XCTAssertEqual(store.takeFoldedServers(), [high.id: low.id])
+        XCTAssertTrue(store.takeFoldedServers().isEmpty)
+    }
+
+    /// A copy whose token has not reached this device is never taken for a duplicate.
+    func testACopyWithoutATokenIsNotFolded() throws {
+        let one = server("00000000-0000-0000-0000-000000000001", "House", "http://house.local:8123", at: 1)
+        let two = server("00000000-0000-0000-0000-000000000002", "House", "http://house.local:8123", at: 2)
+        let store = try storeHolding([one, two], tokens: [one.id: token])
+        XCTAssertEqual(store.servers.count, 2)
+    }
+
+    /// http:// and https:// copies stay apart: one of them may be the one that works.
+    func testHttpAndHttpsCopiesAreNotFolded() throws {
+        let plain = server("00000000-0000-0000-0000-000000000001", "House", "http://house.example.com", at: 1)
+        let secure = server("00000000-0000-0000-0000-000000000002", "House", "https://house.example.com", at: 2)
+        let store = try storeHolding([plain, secure], tokens: [plain.id: token, secure.id: token])
+        XCTAssertEqual(store.servers.count, 2)
+    }
+
+    /// Two devices that remember different copies still keep the same one.
+    func testEveryDeviceKeepsTheSameCopy() throws {
+        let low = server("00000000-0000-0000-0000-000000000001", "House", "http://house.local:8123", at: 1)
+        let high = server("FFFFFFFF-0000-0000-0000-000000000001", "House", "http://house.local:8123", at: 2)
+        let first = try storeHolding([low, high], tokens: [low.id: token, high.id: token], lastUsed: ["home": high.id])
+        defaults.removePersistentDomain(forName: suiteName)
+        let second = try storeHolding([high, low], tokens: [low.id: token, high.id: token], lastUsed: ["home": low.id])
+        XCTAssertEqual(first.servers.map(\.id), [low.id])
+        XCTAssertEqual(second.servers.map(\.id), [low.id])
+    }
+
+    /// Retyping an address with https:// keeps what was typed.
+    func testAddingTheSameAddressTakesTheTypedAddress() {
         let store = makeStore()
-        XCTAssertEqual(store.servers.map(\.id), [original.id, beach.id])
-        XCTAssertNil(tokens.token(forServerId: retry.id))
+        store.add(HomeAssistantServer(name: "House", address: "http://house.local:8123", token: token))
+        store.add(HomeAssistantServer(name: "House", address: "https://house.local:8123", token: token))
+        XCTAssertEqual(store.servers.map(\.address), ["https://house.local:8123"])
     }
 
     func testUniqueByIdKeepsTheNewestCopy() {

@@ -32,6 +32,19 @@ struct HomeKitBridgeApp: App {
         let preferences = SyncPreferencesStore(cloud: UbiquitousConfigurationSyncStore())
         _preferences = StateObject(wrappedValue: preferences)
 
+        // Copies of one server left by earlier versions were folded at load; carry their
+        // hand-made pairings over and say so in Activity, rather than tidy up silently.
+        let folded = connections.takeFoldedServers()
+        if !folded.isEmpty {
+            preferences.moveManualPairings(from: folded)
+            let names = Set(folded.values.compactMap { connections.server(id: $0)?.name }).sorted()
+            logs.add(
+                category: .server,
+                message: "Removed \(folded.count) duplicate server\(folded.count == 1 ? "" : "s")",
+                details: "Copies of \(names.map { "“\($0)”" }.joined(separator: ", ")) that pointed at the same Home Assistant with the same token. Pairings now use the one that was kept."
+            )
+        }
+
         let sync = SyncEngine(homeKitManager: homeKit, logStore: logs, connections: connections, preferences: preferences)
         _syncEngine = StateObject(wrappedValue: sync)
 
