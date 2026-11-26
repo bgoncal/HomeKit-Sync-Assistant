@@ -149,7 +149,9 @@ struct ServerDetailContent: View {
                     )
                 }
 
-                if isNew, case .failed = connectionState, duplicateName == nil {
+                // Only for a server that is out of reach; a malformed address or token is
+                // never worth saving.
+                if isNew, case .failed = connectionState, duplicateName == nil, server.isConfigured {
                     Button("Add Anyway", action: onAddAnyway)
                 }
             } header: {
@@ -180,7 +182,9 @@ struct ServerDetailContent: View {
 
     private var connectionFooter: String {
         if isNew, case .failed = connectionState {
-            return "Nothing has been saved. Fix the address or token and tap Add again, or add it anyway if Home Assistant is simply out of reach right now."
+            return server.isConfigured
+                ? "Nothing has been saved. Fix the address or token and tap Add again, or add it anyway if Home Assistant is simply out of reach right now."
+                : "Nothing has been saved. Fix the address or token, then tap Add."
         }
         if server.address.isEmpty || server.token.isEmpty {
             return "Enter the address you use to open Home Assistant, and a long-lived access token from your profile page. The token is kept in your keychain, and iCloud Keychain carries it to your other devices."
