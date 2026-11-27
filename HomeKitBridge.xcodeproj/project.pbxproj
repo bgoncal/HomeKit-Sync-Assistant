@@ -54,6 +54,8 @@
 		E0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AC87B4B8C7B59158A2BB47 /* DifferencesView.swift */; };
 		E60606E141CA60E2D2B10BD7 /* SyncIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60606E141CA60E2D2B10BD7 /* SyncIntents.swift */; };
 		E95D097B703E67D2B07AD127 /* ConnectionProblem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95D097B703E67D2B07AD127 /* ConnectionProblem.swift */; };
+		096633780801D8A181BD710F /* HouseCore in Frameworks */ = {isa = PBXBuildFile; productRef = D778FBB3AF99930EA5C09882 /* HouseCore */; };
+		849E80C6329692181A35D1A6 /* HouseSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 63B017A665959582753B5BDC /* HouseSupport */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -124,6 +126,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				096633780801D8A181BD710F /* HouseCore in Frameworks */,
+				849E80C6329692181A35D1A6 /* HouseSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,6 +265,10 @@
 			productName = HomeKitBridge;
 			productReference = A2000010 /* HomeKitBridge.app */;
 			productType = "com.apple.product-type.application";
+			packageProductDependencies = (
+				D778FBB3AF99930EA5C09882 /* HouseCore */,
+				63B017A665959582753B5BDC /* HouseSupport */,
+			);
 		};
 		B5000010 /* HomeKitBridgeTests */ = {
 			isa = PBXNativeTarget;
@@ -308,6 +316,7 @@
 			mainGroup = A4000001;
 			packageReferences = (
 				B5000020 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+				7E6D4B08DE825749603753D2 /* XCRemoteSwiftPackageReference "HouseKit" */,
 			);
 			productRefGroup = A4000003 /* Products */;
 			projectDirPath = "";
@@ -644,6 +653,14 @@
 				minimumVersion = 1.18.9;
 			};
 		};
+		7E6D4B08DE825749603753D2 /* XCRemoteSwiftPackageReference "HouseKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/bgoncal/HouseKit.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.7.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -651,6 +668,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B5000020 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
 			productName = SnapshotTesting;
+		};
+		D778FBB3AF99930EA5C09882 /* HouseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E6D4B08DE825749603753D2 /* XCRemoteSwiftPackageReference "HouseKit" */;
+			productName = HouseCore;
+		};
+		63B017A665959582753B5BDC /* HouseSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E6D4B08DE825749603753D2 /* XCRemoteSwiftPackageReference "HouseKit" */;
+			productName = HouseSupport;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

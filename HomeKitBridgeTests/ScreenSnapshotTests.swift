@@ -62,7 +62,11 @@ final class HomeSnapshotTests: SnapshotTestCase {
     func testSettings() {
         assertScreen(
             NavigationStack {
-                SettingsContent(tipProduct: Fixtures.tipProduct, appVersion: "1.2 (21)")
+                SettingsContent(
+                    logBook: LogStore().book,
+                    tipProduct: Fixtures.tipProduct,
+                    appVersion: "1.2.1 (41)"
+                )
             },
             named: "settings"
         )

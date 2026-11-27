@@ -1,3 +1,5 @@
+import HouseCore
+import HouseSupport
 import SwiftUI
 
 /// Where the app opens: both sides at a glance, the local API, and the small print.
@@ -7,6 +9,7 @@ struct HomeView: View {
     @EnvironmentObject private var server: HTTPServer
     @EnvironmentObject private var scheduledActionManager: ScheduledActionManager
     @EnvironmentObject private var preferences: SyncPreferencesStore
+    @EnvironmentObject private var logStore: LogStore
 
     @AppStorage("onboardingComplete") private var onboardingComplete = false
 
@@ -40,6 +43,7 @@ struct HomeView: View {
             scheduleCount: scheduledActionManager.schedules.count,
             exclusionCount: preferences.exclusionCount,
             isSyncingWithCloud: connections.isSyncingWithCloud && preferences.isSyncingWithCloud,
+            logBook: logStore.book,
             tipProduct: tipProduct,
             tipState: tipState,
             appVersion: Bundle.main.appVersionString,
@@ -117,6 +121,8 @@ struct HomeContent: View {
     var supportsScheduledActions: Bool = ScheduledActionManager.isSupported
     var exclusionCount: Int = 0
     var isSyncingWithCloud: Bool = true
+    /// The house log behind Settings › Troubleshooting.
+    var logBook: LogBook?
     var tipProduct: TipProduct?
     var tipState: TipState = .idle
     var appVersion: String = ""
@@ -150,6 +156,8 @@ struct HomeContent: View {
                     NavigationStack {
                         SettingsContent(
                             isSyncingWithCloud: isSyncingWithCloud,
+                            logBook: logBook,
+                            diagnosticFacts: diagnosticFacts,
                             tipProduct: tipProduct,
                             tipState: tipState,
                             appVersion: appVersion,
@@ -168,6 +176,23 @@ struct HomeContent: View {
                 }
             }
         }
+    }
+
+    /// What Troubleshooting shows under "This Device" and puts at the top of an export.
+    /// Counts and switches only — never an address or a token.
+    private var diagnosticFacts: [DiagnosticFact] {
+        let connected = connections.filter(\.state.isConnected).count
+        return [
+            DiagnosticFact(name: "Apple Home access", label: "Apple Home Access", value: isHomeKitAuthorized ? "allowed" : "not allowed",
+                           display: isHomeKitAuthorized ? "Allowed" : "Not Allowed"),
+            DiagnosticFact(name: "Apple Homes", label: "Apple Homes", value: homes.count.formatted()),
+            DiagnosticFact(name: "Home Assistant servers", label: "Home Assistant Servers",
+                           value: "\(connections.count) (\(connected) connected)"),
+            DiagnosticFact(name: "iCloud", label: "iCloud", value: isSyncingWithCloud ? "on" : "off",
+                           display: isSyncingWithCloud ? "On" : "Off"),
+            DiagnosticFact(name: "Local API", label: "Local API", value: isServerRunning ? "on, port \(serverPort)" : "off",
+                           display: isServerRunning ? "On, port \(serverPort)" : "Off"),
+        ]
     }
 
     // MARK: Getting started
@@ -304,6 +329,8 @@ struct HomeContent: View {
 /// The setup guide, the tip jar and the small print, behind the gear on Home.
 struct SettingsContent: View {
     var isSyncingWithCloud: Bool = true
+    var logBook: LogBook?
+    var diagnosticFacts: [DiagnosticFact] = []
     var tipProduct: TipProduct?
     var tipState: TipState = .idle
     var appVersion: String = ""
@@ -332,14 +359,35 @@ struct SettingsContent: View {
                      : "iCloud is off, so servers, exclusions and pairings stay on this device. A sync on another device will still change what is excluded here.")
             }
 
+            troubleshootingSection
             supportSection
             aboutSection
+            DeveloperSection(appName: "Home Sync Assistant")
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Settings")
         #if !targetEnvironment(macCatalyst)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+
+    private var troubleshootingSection: some View {
+        Section {
+            NavigationLink {
+                if let logBook {
+                    TroubleshootingScreen(
+                        appName: "Home Sync Assistant",
+                        book: logBook,
+                        facts: diagnosticFacts,
+                        privacyNote: Text("It records each sync, the rooms and devices it changed, and connection errors with the server's address. Access tokens are never written to it.")
+                    )
+                }
+            } label: {
+                Label("Troubleshooting", systemImage: "stethoscope")
+            }
+        } footer: {
+            Text("What the app did, kept on this device, and a way to send it if something goes wrong.")
+        }
     }
 
     private var supportSection: some View {
@@ -387,9 +435,6 @@ struct SettingsContent: View {
                 Label("Source on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
             }
 
-            Link(destination: URL(string: "https://x.com/bgoncal2")!) {
-                Label("@bgoncal2 on X", systemImage: "at")
-            }
         } header: {
             Text("About")
         } footer: {
